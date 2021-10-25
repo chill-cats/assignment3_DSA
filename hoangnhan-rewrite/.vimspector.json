@@ -1,0 +1,25 @@
+{
+    "configurations": {
+        "Debug main LLDB": {
+            "adapter": "CodeLLDB",
+            "breakpoints": {
+                "exception": {
+                    "cpp_throw": "Y",
+                    "cpp_catch": "N"
+                }
+            },
+            "configuration": {
+                "type": "lldb",
+                "request": "launch",
+                "program": "${workspaceRoot}/cmake-build/src/main",
+                "args": [
+                    "${workspaceRoot}/testE1.txt"
+                ],
+                "cwd":"${workspaceRoot}",
+                "externalConsole": true,
+                "stopAtEntry": true,
+                "MIMode":"lldb"
+            }
+        }
+    }
+}
