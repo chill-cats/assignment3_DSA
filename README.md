@@ -1,4 +1,4 @@
-# DSA  Assignment 2 Repository
+# DSA  Assignment 3 Repository
 ## How to use the repository
 To add your code to your repository:
 1.	Clone the repository.
@@ -7,3 +7,8 @@ To add your code to your repository:
 4.	Create a commit with meaningful message.
 5.	Push code to upstream
 6.	Done!
+
+## Question and problems
+1.  Q: Tham số setup Hash table có thể âm không
+	   Ví dụ: LINEAR 381 -18 có là một câu lệnh setup hợp lệ
+	A: Not yet!	
