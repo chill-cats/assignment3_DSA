@@ -9,6 +9,6 @@ To add your code to your repository:
 6.	Done!
 
 ## Question and problems
-1.  Q: Tham số setup Hash table có thể âm không
-	   Ví dụ: LINEAR 381 -18 có là một câu lệnh setup hợp lệ
+1.  Q: Tham số setup Hash table có thể âm không  
+	   Ví dụ: LINEAR 381 -18 có là một câu lệnh setup hợp lệ?  
 	A: Not yet!	
