@@ -17,9 +17,9 @@
 #define ASSIGN "ASSIGN"
 #define LOOKUP "LOOKUP"
 #define CALL "CALL"
-#define LINEAR "LINEAR:"
-#define QUADRATIC "QUADRATIC:"
-#define  DOUBLE "DOUBLE:"
+#define LINEAR "LINEAR"
+#define QUADRATIC "QUADRATIC"
+#define  DOUBLE "DOUBLE"
 
 class ID{
 
