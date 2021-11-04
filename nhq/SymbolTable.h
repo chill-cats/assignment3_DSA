@@ -20,7 +20,7 @@
 #define LINEAR "LINEAR"
 #define QUADRATIC "QUADRATIC"
 #define  DOUBLE "DOUBLE"
-
+#define NPOS std::string::npos
 class ID{
 
 };
@@ -29,17 +29,18 @@ public:
     string input;
     string command, name, probingMethod; //Instruction
     int sizeHash, constFind; //Probing
-    int num_of_params; //Insert
+    int effective_numParams, nominal_numParams; //Insert
     static bool isNumber(const string& test);
     static bool isString(const string& test);
     static bool isId(const string& line);
+    bool isCallRoutine(const string& test);
     void parseInsert(unsigned long & pos, string& line);
     void parseAssign(int& pos, string& line);
-    void parseCall(int& pos, string& line);
+    void parseCall(unsigned long & pos, string& line);
     static void parseLookup(unsigned long & pos, string& line);
     void parseProbing(unsigned long & pos, string& line);
     Parser();
-    string getInp(){return this->input;}
+    string getInp() const{return this->input;}
     void getInstructionType();
     void setInp(string& line){this->input = line;}
 };
