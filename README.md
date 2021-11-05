@@ -24,5 +24,3 @@ To add your code to your repository:
     
 5.  Q: Kích thước của hash table có thể bằng 0 không?\
     A: Not yet!
-
-6. Q: Kích
