@@ -1,14 +1,11 @@
-from random import randint, choice
 import pathlib
 import re
 import argparse
-import string
 import subprocess
 import curses
-from time import sleep
 from utils import generator 
 
-def main(stdscr):
+def main(_):
     parser = argparse.ArgumentParser(
         description="Run test program with random setup line passed in stdin")
     parser.add_argument('path', type=pathlib.Path,

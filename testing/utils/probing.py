@@ -54,19 +54,3 @@ def mutateLine(line):
 
     return "".join(lineToMutate)
 
-
-def generateSetupLine():
-    option = randint(0, 2)
-    line = ""
-    if option == 0:
-        line = generateLinear()
-    elif option == 1:
-        line = generateDouble()
-    elif option == 2:
-        line = generateQuadratic()
-
-    shouldMutate = randint(0, 1)
-    if shouldMutate == 1:
-        line = mutateLine(line)
-
-    return line
