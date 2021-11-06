@@ -6,77 +6,7 @@ import string
 import subprocess
 import curses
 from time import sleep
-
-def generateLinear():
-    line = "LINEAR "
-    param = randint(0, 999999)
-    line += str(param)
-    line += " "
-    param = randint(0, 999999)
-    line += str(param)
-    return line
-
-
-def generateDouble():
-    line = "DOUBLE "
-    param = randint(0, 999999)
-    line += str(param)
-    line += ' '
-    param = randint(0, 999999)
-    line += str(param)
-    return line
-
-
-def generateQuadratic():
-    line = "QUADRATIC "
-    param = randint(0, 999999)
-    line += str(param)
-    line += " "
-    param = randint(0, 999999)
-    line += str(param)
-    line += " "
-    param = randint(0, 999999)
-    line += str(param)
-    return line
-
-
-def mutateLine(line):
-    lineToMutate = list(line)
-    alphabets = string.digits + string.ascii_letters
-    length = len(line)
-    mutationCount = randint(0, int(length / 2))
-    for _ in range(mutationCount):
-        mutationPos = randint(0, length - 1)
-        randomLetter = choice(alphabets)
-        lineToMutate[mutationPos] = randomLetter
-
-    addSpaceBegin = randint(0, 1)
-    if addSpaceBegin == 1:
-        lineToMutate = " " + line
-
-    addSpaceEnd = randint(0, 1)
-    if addSpaceEnd == 1:
-        lineToMutate += " "
-
-    return "".join(lineToMutate)
-
-
-def generateSetupLine():
-    option = randint(0, 2)
-    line = ""
-    if option == 0:
-        line = generateLinear()
-    elif option == 1:
-        line = generateDouble()
-    elif option == 2:
-        line = generateQuadratic()
-
-    shouldMutate = randint(0, 1)
-    if shouldMutate == 1:
-        line = mutateLine(line)
-
-    return line
-
+from utils import generator 
 
 def main(stdscr):
     parser = argparse.ArgumentParser(
@@ -96,7 +26,7 @@ def main(stdscr):
     programOutputWin = curses.newwin(5, int((curses.COLS - 1) / 2), 1, int((curses.COLS - 1) / 2))
 
     for it in range(args.N):
-        line = generateSetupLine()
+        line = generator.generateSetupLine()
         valid = False
         regexMatchResult = re.search(regex, line)
 
