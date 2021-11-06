@@ -28,6 +28,7 @@ class Parser{
 public:
     string input;
     string command, name, probingMethod; //Instruction
+    string value; //Assign
     int sizeHash, constFind; //Probing
     int effective_numParams, nominal_numParams; //Insert
     static bool isNumber(const string& test);
@@ -35,7 +36,7 @@ public:
     static bool isId(const string& line);
     bool isCallRoutine(const string& test);
     void parseInsert(unsigned long & pos, string& line);
-    void parseAssign(int& pos, string& line);
+    void parseAssign(unsigned long & pos, string& line);
     void parseCall(unsigned long & pos, string& line);
     static void parseLookup(unsigned long & pos, string& line);
     void parseProbing(unsigned long & pos, string& line);

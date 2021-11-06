@@ -27,19 +27,23 @@ void Parser::getInstructionType()
             return;
         }
         if(instruction == INSERT){
+            this->command = instruction;
             this->parseInsert(firstSpace, line);
             return;
         }
         else if(instruction == ASSIGN){
+            this->command = instruction;
             this->parseAssign(firstSpace, line);
             return;
 
         }
         else if(instruction == LOOKUP){
+            this->command = instruction;
             Parser::parseLookup(firstSpace, line);
             return;
         }
         else if(instruction == CALL){ //Parse Call to get args
+            this->command = instruction;
             this->parseCall(firstSpace, line);
             return;
         }
@@ -57,7 +61,7 @@ void Parser::parseProbing(unsigned long & pos, std::string& line) {
         INVALID_INSTRUCTION(line);
 
     auto constC = line.substr(secondSpace+1);
-    if(!this->isNumber(constC)) 
+    if(!Parser::isNumber(constC))
         INVALID_INSTRUCTION(line);
     //Put args into parser -> Pass to methods
     this->sizeHash = stoi(constM); this->constFind = stoi(constC);
@@ -209,9 +213,9 @@ void SymbolTable::run(const std::string& filename)
         //    else if(myParser.command == PRINT){
 
         //    }
-        //    else if(myParser.command == BEGIN){
-
-        //    }
+        if(myParser.command == BEGIN){
+            this->Begin();
+        }
         //    else if (myParser.command == END){
 
         //    }
@@ -229,9 +233,7 @@ void SymbolTable::Assign(Parser theParser) {
 
 }
 
-void SymbolTable::Begin() {
-
-}
+void SymbolTable::Begin() {this->currentLevel += 1;}
 
 void SymbolTable::End() {
 
