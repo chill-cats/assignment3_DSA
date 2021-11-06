@@ -38,7 +38,7 @@ public:
     void parseInsert(unsigned long & pos, string& line);
     void parseAssign(unsigned long & pos, string& line);
     void parseCall(unsigned long & pos, string& line);
-    static void parseLookup(unsigned long & pos, string& line);
+    void parseLookup(unsigned long & pos, string& line);
     void parseProbing(unsigned long & pos, string& line);
     Parser();
     string getInp() const{return this->input;}

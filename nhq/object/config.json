@@ -1,0 +1,13 @@
+{
+  "TEST_INSTRUCTION": [
+    "INSERT",
+    "ASSIGN",
+    "LOOKUP",
+    "PRINT",
+    "BEGIN",
+    "END",
+    "CALL"
+  ],
+  "NUM_TEST": 100,
+  "NUM_ID": 100
+}

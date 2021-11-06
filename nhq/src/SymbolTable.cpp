@@ -1,5 +1,21 @@
 #include "SymbolTable.h"
+#include<chrono>
+#include<thread>
+struct Timer{
+    std::chrono::time_point<std::chrono::system_clock> start, end;
+    std::chrono::duration<float>duration{};
 
+    Timer(){
+        start = std::chrono::high_resolution_clock::now();
+    }
+    ~Timer(){
+        end = std::chrono::high_resolution_clock::now();
+        duration = end - start;
+        float ms = duration.count()*1000;
+        std::cout << "Timer = " << ms << "ms" << "\n";
+    }
+
+};
 //==================== Parser =================================
 Parser::Parser(){
     this->input = "";
@@ -52,6 +68,8 @@ void Parser::getInstructionType()
     }
 }
 void Parser::parseProbing(unsigned long & pos, std::string& line) {
+    Timer timer;
+    cout << "Parse Probing: ";
     auto secondSpace = line.find(' ', pos+1);
     if(secondSpace == NPOS)
         INVALID_INSTRUCTION(line);
@@ -64,9 +82,12 @@ void Parser::parseProbing(unsigned long & pos, std::string& line) {
     if(!Parser::isNumber(constC))
         INVALID_INSTRUCTION(line);
     //Put args into parser -> Pass to methods
-    this->sizeHash = stoi(constM); this->constFind = stoi(constC);
+    this->sizeHash = stoull(constM); this->constFind = stoull(constC);
 }
 void Parser::parseInsert(unsigned long &pos, std::string& line) {
+
+    Timer timer;
+    cout << "Parse Insert: "; //Testing
     std::string identifier_name;
     int secondSpace = line.find(' ', pos+1), num_of_params = -1;
     if(secondSpace == NPOS){
@@ -81,15 +102,22 @@ void Parser::parseInsert(unsigned long &pos, std::string& line) {
         auto numParams = line.substr(secondSpace+1);
         if(!this->isNumber(numParams))
             INVALID_INSTRUCTION(line);
-        num_of_params = stoi(numParams);
+        num_of_params = stoull(numParams);
     }
-    this->name = identifier_name; this->effective_numParams = num_of_params;
+    this->name = std::move(identifier_name); this->nominal_numParams = num_of_params;
 }
 void Parser::parseLookup(unsigned long &pos, std::string &line) {
+
+    Timer timer;
+    cout << "Parse Lookup: ";
     auto ID = line.substr(pos+1);
     if(!Parser::isId(ID)) throw  InvalidInstruction(line);
+    this->name = std::move(ID);
 }
 void Parser::parseAssign(unsigned long &pos, string &line) {
+
+    Timer timer;
+    cout << "Parse Assign: ";
     auto secondSpace = line.find(' ', pos+1);
     if(secondSpace == NPOS)
         INVALID_INSTRUCTION(line);
@@ -100,10 +128,12 @@ void Parser::parseAssign(unsigned long &pos, string &line) {
     if(!Parser::isId(valueAssign) && !Parser::isNumber(valueAssign) && !Parser::isString(valueAssign) && !Parser::isCallRoutine(valueAssign))
         INVALID_INSTRUCTION(line);
     //If valid instruction then get args
-    this->name = tobeAssign;
-    this->value = valueAssign;
+    this->name = std::move(tobeAssign);
+    this->value = std::move(valueAssign);
 }
 void Parser::parseCall(unsigned long &pos, std::string &line) {
+    Timer timer;
+    cout << "Parse Call: " ;
     std::string callID;
     std::string functionCall = line.substr(pos+1);
     if(!this->isCallRoutine(functionCall))
@@ -201,9 +231,11 @@ void SymbolTable::run(const std::string& filename)
         while(getline(inFile, line)){
             myParser.setInp(line);
             myParser.getInstructionType();
-        //    if(myParser.command == INSERT){
-
-        //    }
+            if(myParser.command == INSERT){
+                Timer timer;
+                this->Insert(myParser);
+                cout << "Insert take: ";
+            }
         //    else if(myParser.command == ASSIGN){
 
             //}
@@ -226,6 +258,14 @@ void SymbolTable::run(const std::string& filename)
 }
 
 void SymbolTable::Insert(Parser theParser) {
+    string name = std::move(theParser.name);
+    string line = std::move(theParser.input);
+//    cout << "Name to insert: " << name << "\n"; // Testing
+    int num_params = theParser.nominal_numParams;
+//    cout << "Num params (optional) = " << num_params << "\n"; //Testing
+    //Check valid insertion of function
+    if(num_params != -1 && this->currentLevel != 0) //If insert function not at level 0
+        INVALID_DECLARATION(line);
 
 }
 

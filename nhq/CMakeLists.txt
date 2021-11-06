@@ -3,4 +3,4 @@ project(nhq)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_executable(nhq main.cpp)
+add_executable(nhq src/main.cpp)

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <iostream>
+#include "SymbolTable.h"
 
 using namespace std;
 class InvalidInstruction : public exception
