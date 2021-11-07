@@ -63,8 +63,8 @@ void Parser::getInstructionType()
             this->parseCall(firstSpace, line);
             return;
         }
-        else
-            INVALID_INSTRUCTION(line);
+        // else
+        //     INVALID_INSTRUCTION(line);
     }
 }
 void Parser::parseProbing(unsigned long & pos, std::string& line) {
@@ -171,11 +171,8 @@ bool Parser::isId(const std::string &test) {
     auto sizeId = test.size();
     for(auto idx = 1; idx < sizeId; ++idx){
         
-        if(test[idx] < 'a' || test[idx] > 'z'){
-            if(test[idx] < '0' || test[idx] > '9'){
-                if(test[idx] != '_')
-                    return false;
-            }
+        if((test[idx] < 'a' || test[idx] > 'z') && (test[idx] < '0' || test[idx] > '9') && (test[idx] != '_') && (test[idx] < 'A' || test[idx] > 'Z')){
+            return false;
         }
     }
     return true;
@@ -189,16 +186,24 @@ bool Parser::isCallRoutine(const std::string &test) {
         2. Check the list params
      */
     auto firstBracket = test.find_first_of('(', 0);
-    if(firstBracket == NPOS)
+    if(firstBracket == NPOS){
+        cout << "Cannot find bracket" << "\n";
         return false;
+    }
     auto secondBracket = test.find(')', firstBracket+1);
-    if(secondBracket == NPOS)
+    if(secondBracket == NPOS){
+        cout << "Cannot find bracket" << "\n";
         return false;
+    }
+        
 
     std::string testID = test.substr(0, firstBracket);
     std::string list_of_params = test.substr(firstBracket+1, secondBracket- firstBracket - 1);
-    if(!Parser::isId(testID)) //Check whether a valid ID
+    if(!Parser::isId(testID)){
+        cout << "Not valid ID: " << testID << "\n";
         return false;
+    } //Check whether a valid ID
+        
     if(list_of_params.empty())
         return true;
     //Parse and check the parameters list
@@ -214,8 +219,11 @@ bool Parser::isCallRoutine(const std::string &test) {
             tmpArg = list_of_params.substr(markedComma, commaIdx - markedComma);
             markedComma = commaIdx+1;
         }
-        if(!Parser::isId(tmpArg) && !Parser::isNumber(tmpArg) && !Parser::isString(tmpArg))
+        if(!Parser::isId(tmpArg) && !Parser::isNumber(tmpArg) && !Parser::isString(tmpArg)){
+            cout << "Not valid arg: " << tmpArg << "\n";
             return false;
+        }
+            
     }
     //If valid, then get the name of identifier and the number of real
     return true;
