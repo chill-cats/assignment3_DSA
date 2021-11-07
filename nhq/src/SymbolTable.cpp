@@ -187,12 +187,10 @@ bool Parser::isCallRoutine(const std::string &test) {
      */
     auto firstBracket = test.find_first_of('(', 0);
     if(firstBracket == NPOS){
-        cout << "Cannot find bracket" << "\n";
         return false;
     }
     auto secondBracket = test.find(')', firstBracket+1);
     if(secondBracket == NPOS){
-        cout << "Cannot find bracket" << "\n";
         return false;
     }
         
@@ -200,7 +198,6 @@ bool Parser::isCallRoutine(const std::string &test) {
     std::string testID = test.substr(0, firstBracket);
     std::string list_of_params = test.substr(firstBracket+1, secondBracket- firstBracket - 1);
     if(!Parser::isId(testID)){
-        cout << "Not valid ID: " << testID << "\n";
         return false;
     } //Check whether a valid ID
         
@@ -220,7 +217,6 @@ bool Parser::isCallRoutine(const std::string &test) {
             markedComma = commaIdx+1;
         }
         if(!Parser::isId(tmpArg) && !Parser::isNumber(tmpArg) && !Parser::isString(tmpArg)){
-            cout << "Not valid arg: " << tmpArg << "\n";
             return false;
         }
             
