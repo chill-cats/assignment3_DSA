@@ -2,7 +2,6 @@ from random import randint, choice
 from utils import probing
 from rstr import xeger
 
-
 def generateSetupLine():
     option = randint(0, 2)
     line = ""

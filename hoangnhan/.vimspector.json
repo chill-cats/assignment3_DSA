@@ -11,10 +11,8 @@
             "configuration": {
                 "type": "lldb",
                 "request": "launch",
-                "program": "${workspaceRoot}/cmake-build/src/main",
-                "args": [
-                    "${workspaceRoot}/testE1.txt"
-                ],
+                "program": "${workspaceRoot}/cmake-build/test/testparser",
+                "args": [],
                 "cwd":"${workspaceRoot}",
                 "externalConsole": true,
                 "stopAtEntry": true,

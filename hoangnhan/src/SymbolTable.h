@@ -182,6 +182,111 @@ bool FixedSizeVec<T>::empty() const noexcept {
     return size() == 0;
 }
 
+namespace pam {    // parse and match
+using StrCIter = std::string::const_iterator;
+
+enum class InstructionType {
+    INSERT,
+    ASSIGN,
+    CALL,
+    BEGIN,
+    END,
+    LOOKUP,
+    PRINT,
+};
+
+enum class AssignType {
+    LITERAL_NUMBER,
+    LITERAL_STRING,
+    IDENTIFIER,
+    FUNC_CALL,
+};
+
+class ParsedInstruction {
+    InstructionType m_type;
+
+public:
+    ParsedInstruction(InstructionType type);
+    InstructionType getType() const noexcept;
+
+    virtual ~ParsedInstruction() = default;
+};
+
+class ParsedINSERT : public ParsedInstruction {
+    const std::string m_name;
+    const bool m_isFunc = false;
+    const unsigned long m_funcParamCount = 0;
+
+public:
+    ParsedINSERT(std::string name, bool isFunc, unsigned long funcParamCount);
+
+    const std::string &getName() const noexcept;
+    bool isFunc() const noexcept;
+    unsigned long getParamCount() const noexcept;
+};
+
+class ParsedASSIGN : ParsedInstruction {
+    const std::string m_name;
+    const AssignType m_valueType;
+    FixedSizeVec<std::string> params;
+
+public:
+    ParsedASSIGN(const std::string, AssignType valueType);
+};
+
+class ParsedCALL : public ParsedInstruction {
+    const std::string m_functionName;
+    FixedSizeVec<std::string> m_params;
+
+public:
+    ParsedCALL(std::string functionName, FixedSizeVec<std::string> params);
+    const std::string &getFunctionName() const noexcept;
+    const FixedSizeVec<std::string> &getParams() const noexcept;
+};
+
+class ParsedLOOKUP : public ParsedInstruction {
+    const std::string m_nameToLookup;
+
+public:
+    ParsedLOOKUP(std::string nameToLookup);
+    const std::string &getNameToLookup() const noexcept;
+};
+
+enum class ProbingMethod {
+    LINEAR,
+    QUADRARTIC,
+    DOUBLE
+};
+
+/**
+ * @brief This represent the parsed line with params
+ */
+struct ParsedSetupLine {
+    ProbingMethod method;
+    FixedSizeVec<unsigned long> params;
+};
+
+struct ParsedFunctionCall {
+    std::string functionName;
+    FixedSizeVec<std::string> params;
+};
+
+class GenericParsingException : std::exception {};
+
+unsigned long strtoul(StrCIter begin, StrCIter end);
+
+std::unique_ptr<ParsedInstruction> parseAssign(StrCIter begin, StrCIter end);
+std::unique_ptr<ParsedInstruction> parseCall(StrCIter begin, StrCIter end);
+std::unique_ptr<ParsedInstruction> parseInsert(StrCIter begin, StrCIter end);
+std::unique_ptr<ParsedInstruction> parseInstruction(const std::string &line);
+
+FixedSizeVec<unsigned long> parseParamsLINEARorDOUBLE(StrCIter begin, StrCIter end);
+
+FixedSizeVec<unsigned long> parseParamsQUADRATIC(StrCIter begin, StrCIter end);
+
+ParsedSetupLine parseSetupLine(const std::string &line);
+
+}    // namespace pam
 class Symbol {
 public:
     enum class SymbolType {
@@ -218,6 +323,7 @@ class SymbolTable {
     int currentLevel = 0;
     bool printFlag = false;
 
+    void setupHashTable(const std::string &setupLine);
     std::string processLine(const std::string &line);
     void detectUnclosedBlock() const;
     void begin() noexcept;
