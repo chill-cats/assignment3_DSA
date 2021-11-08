@@ -38,7 +38,7 @@ void Parser::getInstructionType()
         auto instruction = line.substr(0, firstSpace); //Get the Instruction type
         //Then parse the args
         if(instruction == LINEAR || instruction == DOUBLE || instruction == QUADRATIC){
-            this->parseProbing(firstSpace, line);
+            this->parseProbing(firstSpace,instruction, line);
             this->probingMethod = std::move(instruction);
             return;
         }
@@ -67,22 +67,50 @@ void Parser::getInstructionType()
             INVALID_INSTRUCTION(line);
     }
 }
-void Parser::parseProbing(unsigned long & pos, std::string& line) {
+void Parser::parseProbing(unsigned long & pos, std::string& method, std::string& line) {
+    /*
+        Receive a setup line then parse to check valid instruction
+        If valid instruction then parse to get the arguments
+        Invalid Instruction when:
+            1. No matched spaces (miss second or third space, redundant spaces)
+            2. ID is not deinfed as a valid format (start by a-z. Including a-z A-Z 0-9 _)
+    */
     Timer timer;
     cout << "Parse Probing: ";
+    
+    //Parse the <m> constant in setup line
     auto secondSpace = line.find(' ', pos+1);
     if(secondSpace == NPOS)
         INVALID_INSTRUCTION(line);
-
     auto constM = line.substr(pos+1, secondSpace-pos-1);
     if(!Parser::isNumber(constM))
         INVALID_INSTRUCTION(line);
+    
+    //Parse the <c1> in the setup line
+    if(method == LINEAR || method == DOUBLE){
+        auto constC1 = line.substr(secondSpace+1);
+        if(!Parser::isNumber(constC1))
+            INVALID_INSTRUCTION(line);
+        this->sizeHash = stoull(constM); this->constFind = stoull(constC1);
+        return;
+    }
 
-    auto constC = line.substr(secondSpace+1);
-    if(!Parser::isNumber(constC))
-        INVALID_INSTRUCTION(line);
+    //Parse the <c2> if the setup line QUADRACTIC
+    else if(method == QUADRATIC){
+        auto thirdSpace = line.find(' ', secondSpace+1);
+        if(thirdSpace == NPOS)
+            INVALID_INSTRUCTION(line);
+        auto constC1 = line.substr(secondSpace+1, thirdSpace-secondSpace-1);
+        if(!Parser::isNumber(constC1))
+            INVALID_INSTRUCTION(line);
+        auto constC2 = line.substr(thirdSpace+1);
+        if(!Parser::isNumber(constC2))
+            INVALID_INSTRUCTION(line);
+        cout <<"<m>: "  << constM << " - <c1>: " << constC1 <<" - <c2>: " << constC2 << "\n";
+        this->sizeHash = stoull(constM); this->constFind = stoull(constC1); this->constFind2 = stoull(constC2);
+        return;
+    }
     //Put args into parser -> Pass to methods
-    this->sizeHash = stoull(constM); this->constFind = stoull(constC);
 }
 void Parser::parseInsert(unsigned long &pos, std::string& line) {
 
@@ -141,6 +169,8 @@ void Parser::parseCall(unsigned long &pos, std::string &line) {
 
 }
 bool Parser::isNumber(const std::string &test) {
+    if(test.empty())
+        return false;
     auto size_test = test.size();
     for(auto i = 0; i < size_test; ++i){
         if(test[i] > '9' || test[i] < '0')
@@ -153,15 +183,8 @@ bool Parser::isString(const std::string& test) {
     if(test[0] != '\'' || test[size_test-1] != '\'')
         return false;
     for(auto idx = 1; idx < size_test-1; ++idx){
-        if(test[idx] < 'a' || test[idx] > 'z'){
-            if(test[idx] < 'A' || test[idx] > 'Z'){
-                if(test[idx] < '0' || test[idx] > '9'){
-                    if(test[idx] != ' '){
-                       return false;
-                    }
-                }
-            }
-        }
+        if((test[idx] < 'a' || test[idx] > 'z') && (test[idx] < 'A' || test[idx] > 'Z') && (test[idx] < '0' || test[idx] > '9') && ((test[idx] != ' ')))
+            return false;
     }
     return true;
 }
@@ -219,7 +242,6 @@ bool Parser::isCallRoutine(const std::string &test) {
         if(!Parser::isId(tmpArg) && !Parser::isNumber(tmpArg) && !Parser::isString(tmpArg)){
             return false;
         }
-            
     }
     //If valid, then get the name of identifier and the number of real
     return true;
