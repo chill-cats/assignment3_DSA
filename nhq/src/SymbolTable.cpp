@@ -38,33 +38,33 @@ void Parser::getInstructionType()
         auto instruction = line.substr(0, firstSpace); //Get the Instruction type
         //Then parse the args
         if(instruction == LINEAR || instruction == DOUBLE || instruction == QUADRATIC){
-            this->probingMethod = instruction;
             this->parseProbing(firstSpace, line);
+            this->probingMethod = std::move(instruction);
             return;
         }
         if(instruction == INSERT){
-            this->command = instruction;
             this->parseInsert(firstSpace, line);
+            this->command = std::move(instruction);
             return;
         }
         else if(instruction == ASSIGN){
-            this->command = instruction;
             this->parseAssign(firstSpace, line);
+            this->command = std::move(instruction);
             return;
 
         }
         else if(instruction == LOOKUP){
-            this->command = instruction;
             Parser::parseLookup(firstSpace, line);
+            this->command = std::move(instruction);
             return;
         }
         else if(instruction == CALL){ //Parse Call to get args
-            this->command = instruction;
             this->parseCall(firstSpace, line);
+            this->command = std::move(instruction);
             return;
         }
-        // else
-        //     INVALID_INSTRUCTION(line);
+        else
+            INVALID_INSTRUCTION(line);
     }
 }
 void Parser::parseProbing(unsigned long & pos, std::string& line) {
