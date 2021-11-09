@@ -115,62 +115,62 @@ typename FixedSizeVec<T>::const_reference FixedSizeVec<T>::operator[](size_type 
 
 template<typename T>
 typename FixedSizeVec<T>::iterator FixedSizeVec<T>::begin() noexcept {
-    return m_data.get();
+    return this->m_data.get();
 }
 
 template<typename T>
 typename FixedSizeVec<T>::const_iterator FixedSizeVec<T>::begin() const noexcept {
-    return m_data.get();
+    return this->m_data.get();
 }
 
 template<typename T>
 typename FixedSizeVec<T>::const_iterator FixedSizeVec<T>::cbegin() const noexcept {
-    return m_data.get();
+    return this->m_data.get();
 }
 
 template<typename T>
 typename FixedSizeVec<T>::iterator FixedSizeVec<T>::end() noexcept {
-    return m_data.get() + m_size;
+    return this->m_data.get() + m_size;
 }
 
 template<typename T>
 typename FixedSizeVec<T>::const_iterator FixedSizeVec<T>::end() const noexcept {
-    return m_data.get() + m_size;
+    return this->m_data.get() + m_size;
 }
 
 template<typename T>
 typename FixedSizeVec<T>::const_iterator FixedSizeVec<T>::cend() const noexcept {
-    return m_data.get() + m_size;
+    return this->m_data.get() + m_size;
 }
 
 template<typename T>
 typename FixedSizeVec<T>::reverse_iterator FixedSizeVec<T>::rbegin() noexcept {
-    return std::reverse_iterator<iterator>(m_data.get() + m_size);
+    return std::reverse_iterator<iterator>(this->m_data.get() + m_size);
 }
 
 template<typename T>
 typename FixedSizeVec<T>::const_reverse_iterator FixedSizeVec<T>::rbegin() const noexcept {
-    return std::reverse_iterator<const_iterator>(m_data.get() + m_size);
+    return std::reverse_iterator<const_iterator>(this->m_data.get() + m_size);
 }
 
 template<typename T>
 typename FixedSizeVec<T>::const_reverse_iterator FixedSizeVec<T>::crbegin() const noexcept {
-    return std::reverse_iterator<const_iterator>(m_data.get() + m_size);
+    return std::reverse_iterator<const_iterator>(this->m_data.get() + m_size);
 }
 
 template<typename T>
 typename FixedSizeVec<T>::reverse_iterator FixedSizeVec<T>::rend() noexcept {
-    return std::reverse_iterator<const_iterator>(m_data.get());
+    return std::reverse_iterator<const_iterator>(this->m_data.get());
 }
 
 template<typename T>
 typename FixedSizeVec<T>::const_reverse_iterator FixedSizeVec<T>::rend() const noexcept {
-    return std::reverse_iterator<const_iterator>(m_data.get());
+    return std::reverse_iterator<const_iterator>(this->m_data.get());
 }
 
 template<typename T>
 typename FixedSizeVec<T>::const_reverse_iterator FixedSizeVec<T>::crend() const noexcept {
-    return std::reverse_iterator<const_iterator>(m_data.get());
+    return std::reverse_iterator<const_iterator>(this->m_data.get());
 }
 template<typename T>
 typename FixedSizeVec<T>::size_type FixedSizeVec<T>::size() const noexcept {
@@ -206,7 +206,7 @@ class ParsedInstruction {
     InstructionType m_type;
 
 public:
-    ParsedInstruction(InstructionType type);
+    explicit ParsedInstruction(InstructionType type);
     InstructionType getType() const noexcept;
 
     virtual ~ParsedInstruction() = default;
@@ -225,13 +225,18 @@ public:
     unsigned long getParamCount() const noexcept;
 };
 
-class ParsedASSIGN : ParsedInstruction {
+class ParsedASSIGN : public ParsedInstruction {
     const std::string m_name;
     const AssignType m_valueType;
-    FixedSizeVec<std::string> params;
+    const std::string m_valueName;
+    const FixedSizeVec<std::string> m_params;
 
 public:
-    ParsedASSIGN(const std::string, AssignType valueType);
+    ParsedASSIGN(std::string name, AssignType valueType, std::string valueName, FixedSizeVec<std::string> params);
+    const std::string &getName() const noexcept; 
+    AssignType getValueType() const noexcept;
+    const std::string &getValueName() const noexcept;
+    const FixedSizeVec<std::string> &getParams() const noexcept;
 };
 
 class ParsedCALL : public ParsedInstruction {
@@ -248,7 +253,7 @@ class ParsedLOOKUP : public ParsedInstruction {
     const std::string m_nameToLookup;
 
 public:
-    ParsedLOOKUP(std::string nameToLookup);
+    explicit ParsedLOOKUP(std::string nameToLookup);
     const std::string &getNameToLookup() const noexcept;
 };
 
@@ -315,7 +320,6 @@ public:
     DataType getDataType() const noexcept;
     void setDataType(DataType type) noexcept;
 };
-
 
 class SymbolTable {
     FixedSizeVec<std::unique_ptr<Symbol>> container;

@@ -11,11 +11,13 @@ add_executable(tests tests.cpp)
 add_executable(testparser testparser.cpp)
 add_executable(testInsertParser testInsertParser.cpp)
 add_executable(testCallParser testCallParser.cpp)
+add_executable(testAssignParser testAssignParser.cpp)
 
 target_link_libraries(tests PRIVATE project_warnings project_options catch_main symbolTable)
 target_link_libraries(testparser PRIVATE project_warnings project_options symbolTable)
 target_link_libraries(testInsertParser PRIVATE project_warnings project_options symbolTable)
 target_link_libraries(testCallParser PRIVATE project_warnings project_options symbolTable)
+target_link_libraries(testAssignParser PRIVATE project_warnings project_options symbolTable)
 
 # automatically discover tests that are defined in catch based test files you can modify the unittests. Set TEST_PREFIX
 # to whatever you want, or use different for different binaries

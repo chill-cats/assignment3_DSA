@@ -6,28 +6,65 @@ ParsedInstruction::ParsedInstruction(InstructionType type) : m_type(type) {}
 InstructionType ParsedInstruction::getType() const noexcept {
     return m_type;
 }
-ParsedINSERT::ParsedINSERT(std::string name, bool isFunc, unsigned long funcParamCount) : ParsedInstruction(InstructionType::INSERT),
-                                                                                          m_name(std::move(name)),
-                                                                                          m_isFunc(isFunc),
-                                                                                          m_funcParamCount(funcParamCount) {}
-ParsedLOOKUP::ParsedLOOKUP(std::string nameToLookup) : ParsedInstruction(InstructionType::LOOKUP), m_nameToLookup(nameToLookup) {}
-ParsedCALL::ParsedCALL(std::string functionName, FixedSizeVec<std::string> params) : ParsedInstruction(InstructionType::CALL), m_functionName(functionName), m_params(std::move(params)) {}
-const std::string &ParsedCALL::getFunctionName() const noexcept { return m_functionName; }
-const FixedSizeVec<std::string> &ParsedCALL::getParams() const noexcept { return m_params; }
-const std::string &ParsedINSERT::getName() const noexcept { return m_name; }
 
-bool ParsedINSERT::isFunc() const noexcept {
-    return m_isFunc;
+ParsedINSERT::ParsedINSERT(std::string name,
+    bool isFunc,
+    unsigned long funcParamCount) : ParsedInstruction(InstructionType::INSERT),
+                                    m_name(std::move(name)),
+                                    m_isFunc(isFunc),
+                                    m_funcParamCount(funcParamCount) {}
+const std::string &ParsedINSERT::getName() const noexcept {
+    return m_name;
 }
 unsigned long ParsedINSERT::getParamCount() const noexcept {
     return m_funcParamCount;
+}
+bool ParsedINSERT::isFunc() const noexcept {
+    return m_isFunc;
+}
+
+ParsedLOOKUP::ParsedLOOKUP(std::string nameToLookup) : ParsedInstruction(InstructionType::LOOKUP),
+                                                       m_nameToLookup(std::move(nameToLookup)) {}
+const std::string &ParsedLOOKUP::getNameToLookup() const noexcept {
+    return m_nameToLookup;
+}
+
+ParsedCALL::ParsedCALL(std::string functionName,
+    FixedSizeVec<std::string> params) : ParsedInstruction(InstructionType::CALL),
+                                        m_functionName(std::move(functionName)), m_params(std::move(params)) {}
+const std::string &ParsedCALL::getFunctionName() const noexcept {
+    return m_functionName;
+}
+const FixedSizeVec<std::string> &ParsedCALL::getParams() const noexcept {
+    return m_params;
+}
+
+ParsedASSIGN::ParsedASSIGN(std::string name,
+    AssignType valueType,
+    std::string valueName,
+    FixedSizeVec<std::string> params) : ParsedInstruction(InstructionType::ASSIGN),
+                                        m_name(std::move(name)),
+                                        m_valueType(valueType),
+                                        m_valueName(std::move(valueName)),
+                                        m_params(std::move(params)) {}
+const std::string &ParsedASSIGN::getName() const noexcept {
+    return m_name;
+}
+AssignType ParsedASSIGN::getValueType() const noexcept {
+    return m_valueType;
+}
+const std::string &ParsedASSIGN::getValueName() const noexcept {
+    return m_valueName;
+}
+const FixedSizeVec<std::string> &ParsedASSIGN::getParams() const noexcept {
+    return m_params;
 }
 
 using StrCIter = std::string::const_iterator;
 unsigned long strtoul(StrCIter begin, StrCIter end) {
     // INFO: Params are non-negative integer with maximum 6 digit
     auto length = end - begin;
-    if (length > 6 || length == 0) {
+    if (length > 6 || length == 0) {    // NOLINT
         throw GenericParsingException();
     }
 
@@ -37,29 +74,31 @@ unsigned long strtoul(StrCIter begin, StrCIter end) {
             throw GenericParsingException();
         }
     }
-
     switch (length) {
-    case 6:
-        result += static_cast<unsigned long>(*(end - 6) - '0') * 100000ULL;
+    case 6:// NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+        result += static_cast<unsigned long>(*(end - 6) - '0') * 100000ULL;    // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
         [[clang::fallthrough]];
-    case 5:
-        result += static_cast<unsigned long>(*(end - 5) - '0') * 10000ULL;
+    case 5:// NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+        result += static_cast<unsigned long>(*(end - 5) - '0') * 10000ULL;    // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
         [[clang::fallthrough]];
     case 4:
-        result += static_cast<unsigned long>(*(end - 4) - '0') * 1000ULL;
+        result += static_cast<unsigned long>(*(end - 4) - '0') * 1000ULL;    // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
         [[clang::fallthrough]];
     case 3:
-        result += static_cast<unsigned long>(*(end - 3) - '0') * 100ULL;
+        result += static_cast<unsigned long>(*(end - 3) - '0') * 100ULL;    // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
         [[clang::fallthrough]];
     case 2:
-        result += static_cast<unsigned long>(*(end - 2) - '0') * 10ULL;
+        result += static_cast<unsigned long>(*(end - 2) - '0') * 10ULL;    // NOLINT
         [[clang::fallthrough]];
     case 1:
         result += static_cast<unsigned long>(*(end - 1) - '0');
+        break;
+    default:
+        throw std::logic_error("Cannot reach here");
     }
     return result;
+    // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 }
-
 
 bool isValidLiteralString(StrCIter begin, StrCIter end) noexcept {
     if (end - begin < 2 || *begin != '\'' || *std::prev(end) != '\'') {
@@ -141,7 +180,7 @@ ParsedFunctionCall parseFunctionCall(StrCIter begin, StrCIter end) {
         return { name, FixedSizeVec<std::string>() };
     }
     auto paramCount = std::count(startOfArgs, closingParan, ',') + 1;
-    FixedSizeVec<std::string> params(paramCount);
+    FixedSizeVec<std::string> params(static_cast<unsigned long>(paramCount));
     unsigned long currentIndex = 0;
     auto currentEnd = startOfArgs;
     for (; currentEnd != closingParan; ++currentEnd) {
@@ -169,6 +208,35 @@ std::unique_ptr<ParsedInstruction> parseCall(StrCIter begin, StrCIter end) {
 }
 
 std::unique_ptr<ParsedInstruction> parseAssign(StrCIter begin, StrCIter end) {
+    if (end - begin < 3) {
+        throw GenericParsingException();
+    }
+    auto sep = std::find(begin, end, ' ');
+    if (sep == end) {
+        throw GenericParsingException();
+    }
+    if (!isValidIdentifierName(begin, sep)) {
+        throw GenericParsingException();
+    }
+    std::string name{ begin, sep };
+    AssignType type = AssignType::FUNC_CALL;
+
+    if (isValidLiteralNumber(std::next(sep), end)) {
+        type = AssignType::LITERAL_NUMBER;
+    } else if (isValidLiteralString(std::next(sep), end)) {
+        type = AssignType::LITERAL_STRING;
+    } else if (isValidIdentifierName(std::next(sep), end)) {
+        type = AssignType::IDENTIFIER;
+    }
+
+    if (type == AssignType::IDENTIFIER) {
+        return std::make_unique<ParsedASSIGN>(name, type, std::string{ std::next(sep), end }, FixedSizeVec<std::string>());
+    }
+    if (type == AssignType::FUNC_CALL) {
+        auto parsedFunctionCall = parseFunctionCall(std::next(sep), end);
+        return std::make_unique<ParsedASSIGN>(name, type, std::move(parsedFunctionCall.functionName), std::move(parsedFunctionCall.params));
+    }
+    return std::make_unique<ParsedASSIGN>(name, type, "", FixedSizeVec<std::string>());
 }
 
 std::unique_ptr<ParsedInstruction> parseLookup(StrCIter begin, StrCIter end) {
@@ -285,7 +353,7 @@ ParsedSetupLine parseSetupLine(const std::string &line) {
 
     const std::string_view QUADRATIC_WORD{ "QUADRATIC" };
     if (std::equal(QUADRATIC_WORD.begin(), QUADRATIC_WORD.end(), line.begin(), firstSpace)) {
-        size_t QUADRATIC_INS_MIN_LEN = 15;
+        const size_t QUADRATIC_INS_MIN_LEN = 15;
         if (line.length() < QUADRATIC_INS_MIN_LEN) {
             throw GenericParsingException();
         }
