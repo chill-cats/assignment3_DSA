@@ -14,13 +14,13 @@ To add your code to your repository:
     A: Định nghĩa của số tự nhiên là số nguyên lớn hơn hoặc bằng không nên nếu âm, quăng ra lỗi InvalidInstruction.
 
 2.  Q: Số lượng tham số của hàm có thể có tối đa là bao nhiêu?\
-    A: Not yet!
+    A: Unlimited!
 	
 3.  Q: Lúc enconde một identifier thành một số nguyên như mô tả sẽ có hiện tượng overflow nếu như name quá dài. Chưa thấy quy định về độ dài của name.\
-    A: Not yet!
+    A: Unlimited length!
 
 4.  Q: Số lượng tham số tối đa một hàm có thể có là bao nhiêu?\
-    A: Not yet!
+    A: Unlimited length!
     
 5.  Q: Kích thước của hash table có thể bằng 0 không?\
-    A: Not yet!
+    A: Yep, size can be 0!
