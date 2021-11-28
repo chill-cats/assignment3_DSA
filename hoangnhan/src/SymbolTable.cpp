@@ -1,4 +1,5 @@
 #include "SymbolTable.h"
+#include "error.h"
 
 namespace pam {    // parse and match
 
@@ -12,7 +13,8 @@ ParsedINSERT::ParsedINSERT(std::string name,
     unsigned long funcParamCount) : ParsedInstruction(InstructionType::INSERT),
                                     m_name(std::move(name)),
                                     m_isFunc(isFunc),
-                                    m_funcParamCount(funcParamCount) {}
+                                    m_funcParamCount(funcParamCount) {
+}
 const std::string &ParsedINSERT::getName() const noexcept {
     return m_name;
 }
@@ -75,10 +77,10 @@ unsigned long strtoul(StrCIter begin, StrCIter end) {
         }
     }
     switch (length) {
-    case 6:// NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+    case 6:                                                                    // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
         result += static_cast<unsigned long>(*(end - 6) - '0') * 100000ULL;    // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
         [[clang::fallthrough]];
-    case 5:// NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+    case 5:                                                                   // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
         result += static_cast<unsigned long>(*(end - 5) - '0') * 10000ULL;    // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
         [[clang::fallthrough]];
     case 4:
@@ -369,6 +371,92 @@ ParsedSetupLine parseSetupLine(const std::string &line) {
 
 }    // namespace pam
 
+Symbol::Symbol(std::string &&name, unsigned long level, SymbolType symbolType) : m_symbolType(symbolType),
+                                                                                 m_name(name),
+                                                                                 m_level(level) {}
+Symbol::SymbolType Symbol::getSymbolType() const noexcept {
+    return m_symbolType;
+}
+
+const std::string &Symbol::getName() const noexcept {
+    return m_name;
+}
+
+unsigned long Symbol::getLevel() const noexcept {
+    return m_level;
+}
+
+Symbol::DataType Symbol::getDataType() const noexcept {
+    return m_dataType;
+}
+
+void Symbol::setDataType(DataType type) noexcept {
+    m_dataType = type;
+}
+
+std::string Symbol::toKey() const {
+    if (isKeyCalculated) {
+        return key;
+    }
+    std::string newKey = std::to_string(m_level);
+    for (char c : m_name) {
+        if (c >= ':') {
+            newKey += static_cast<char>(((c - 48) / 10) + '0');    // NOLINT
+            newKey += static_cast<char>(((c - 48) % 10) + '0');    // NOLINT
+        } else {
+            newKey += static_cast<char>((c - 48) + '0');    // NOLINT
+        }
+    }
+    key = std::move(newKey);
+    return key;
+}
+
+std::string toKey(unsigned long level, const std::string &name) {
+    std::string newKey = std::to_string(level);
+    for (char c : name) {
+        if (c >= ':') {
+            newKey += static_cast<char>(((c - 48) / 10) + '0');    // NOLINT
+            newKey += static_cast<char>(((c - 48) % 10) + '0');    // NOLINT
+        } else {
+            newKey += static_cast<char>((c - 48) + '0');    // NOLINT
+        }
+    }
+    return newKey;
+}
+
+FunctionSymbol::FunctionSymbol(std::string name,
+    unsigned long level,    // NOLINT
+    unsigned long paramsNum) : Symbol(std::move(name), level, SymbolType::FUNC),
+                               m_paramsType(FixedSizeVec<DataType>(paramsNum)) {
+    std::fill(m_paramsType.begin(), m_paramsType.end(), DataType::UN_INFERRED);
+}
+
+decltype(FunctionSymbol::m_paramsType) &FunctionSymbol::getParams() noexcept {
+    return m_paramsType;
+}
+
+VariableSymbol::VariableSymbol(std::string name,
+    unsigned long level) : Symbol(std::move(name), level, SymbolType::VAR) {}
+
+SymbolTable::HashEntry::HashEntry(std::unique_ptr<Symbol> &&value) : value(std::move(value)) {}
+const std::unique_ptr<Symbol> &SymbolTable::HashEntry::getValue() const noexcept {
+    return value;
+}
+bool SymbolTable::HashEntry::isTombStone() const noexcept {
+    return isTombstone;
+}
+void SymbolTable::HashEntry::setTombStone() noexcept {
+    isTombstone = true;
+}
+void SymbolTable::HashEntry::unsetTombStone() noexcept {
+    isTombstone = false;
+}
+
+void SymbolTable::HashEntry::setValue(std::unique_ptr<Symbol> &&newVal) {
+    value = std::move(newVal);
+}
+
+
 void SymbolTable::run(const std::string &filename) {
     std::ifstream file(filename);
     std::string line;
@@ -384,20 +472,472 @@ void SymbolTable::run(const std::string &filename) {
     }
 
     while (std::getline(file, line)) {
-        auto output = this->processLine(line);
-        if (printFlag) {
-            std::cout << output << '\n';
-        }
-        printFlag = false;
+        this->processLine(line);
     }
     this->detectUnclosedBlock();
 }
 
-void SymbolTable::setupHashTable(const std::string &setupLine) {
-    auto res = pam::parseSetupLine(setupLine);
+unsigned long SymbolTable::hashFunc(unsigned long level, const std::string &name) {
+    auto size = container.size();
+    auto hash = level;
+
+    for (auto a : name) {
+        unsigned long c = static_cast<unsigned long>(a - '0');    // NOLINT
+        hash %= size;
+
+        hash *= c >= 10 ? 100 : 10;    // NOLINT
+
+        hash %= size;
+        c %= size;
+        hash += c;
+        hash %= size;
+    }
+    return hash;
 }
 
-std::string SymbolTable::processLine(const std::string &line) {
+/*
+unsigned long SymbolTable::doubleHashFunc(const Symbol *symbol) {
+    auto size = container.size() - 2;
+    auto hash = symbol->getLevel();
+
+    for (auto a : symbol->getName()) {
+        unsigned long c = static_cast<unsigned long>(a - '0');    // NOLINT
+        hash %= size;
+
+        hash *= a > 10 ? 100 : 10;    // NOLINT
+
+        hash %= size;
+        c %= size;
+        hash += c;
+        hash %= size;
+    }
+    return hash + 1;
+}
+
+unsigned long SymbolTable::doubleHashFunc(unsigned long level, const std::string &name) {
+    auto size = container.size() - 2;
+    auto hash = level;
+
+    for (auto a : name) {
+        unsigned long c = static_cast<unsigned long>(a - '0');    // NOLINT
+        hash %= size;
+
+        hash *= a > 10 ? 100 : 10;    // NOLINT
+
+        hash %= size;
+        c %= size;
+        hash += c;
+        hash %= size;
+    }
+    return hash + 1;
+}
+*/
+void SymbolTable::setupHashTable(const std::string &setupLine) {
+    auto res = pam::parseSetupLine(setupLine);
+    container = FixedSizeVec<HashEntry>(res.params[0]);
+
+    switch (res.method) {
+    case pam::ProbingMethod::LINEAR: {
+        auto c = res.params[1];
+        getIndex = [this, c](unsigned int iter, unsigned long firstHash, unsigned long) -> unsigned long {    // NOLINT
+            return (firstHash + (c * iter) % container.size()) % container.size();
+        };
+        doubleHashFunc = [this](unsigned long level, const std::string &name) -> unsigned long {
+            auto size = container.size() - 2;
+            auto hash = level;
+
+            for (auto a : name) {
+                unsigned long c = static_cast<unsigned long>(a - '0');    // NOLINT
+                hash %= size;
+
+                hash *= a > 10 ? 100 : 10;    // NOLINT
+
+                hash %= size;
+                c %= size;
+                hash += c;
+                hash %= size;
+            }
+            return hash + 1;
+        };
+        break;
+    }
+    case pam::ProbingMethod::DOUBLE: {
+        auto c = res.params[1];
+        getIndex = [this, c](unsigned int iter, unsigned long firstHash, unsigned long secondHash) -> unsigned long {
+            return (firstHash
+                       + (c * iter * secondHash % container.size()))
+                   % container.size();
+        };
+        doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {    // NOLINT
+            return std::numeric_limits<unsigned long>::max();
+        };
+        break;
+    }
+    case pam::ProbingMethod::QUADRARTIC:
+        auto c1 = res.params[1];
+        auto c2 = res.params[2];
+        getIndex = [this, c1, c2](unsigned int iter, unsigned long firstHash, unsigned long) -> unsigned long {    // NOLINT
+            return (firstHash
+                       + (c1 * iter) % container.size()
+                       + (c2 * iter * iter) % container.size())
+                   % container.size();
+        };
+        doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {
+            return std::numeric_limits<unsigned long>::max();
+        };
+        break;
+    }
+}
+
+unsigned long SymbolTable::insert(const pam::ParsedINSERT *parsed) {
+    if (container.empty()) {
+        throw sbtexcept::GenericOverflowException();
+    }
+
+    std::unique_ptr<Symbol> newSymbol;
+    if (parsed->isFunc()) {
+        if (currentLevel == 0) {
+            newSymbol = std::make_unique<FunctionSymbol>(parsed->getName(), currentLevel, parsed->getParamCount());
+        } else {
+            throw InvalidDeclaration(parsed->getName());
+        }
+    } else {
+        newSymbol = std::make_unique<VariableSymbol>(parsed->getName(), currentLevel);
+    }
+
+    auto probingIter = 0U;
+
+    const auto firstHash = hashFunc(currentLevel, newSymbol->getName());
+    const auto secondHash = hashFunc(currentLevel, newSymbol->getName());
+
+    const auto initialPosition = getIndex(probingIter, firstHash, secondHash);
+    auto position = initialPosition;
+
+    for (; !container[position].isTombStone()
+           && container[position].getValue();
+         position = getIndex(++probingIter, firstHash, secondHash)) {
+
+        if ((probingIter != 0 && position == initialPosition) || probingIter > container.size()) {
+            throw sbtexcept::GenericOverflowException();
+        }
+
+        if (container[position].getValue()->toKey() == newSymbol->toKey()) {
+            throw Redeclared(parsed->getName());
+        }
+    }
+
+    container[position].setValue(std::move(newSymbol));
+    container[position].unsetTombStone();
+    return probingIter;
+}
+
+void SymbolTable::begin() noexcept {
+    currentLevel++;
+}
+
+void SymbolTable::end() {
+    if (currentLevel == 0) {
+        throw sbtexcept::UnknownBlock();
+    }
+
+    if (container.empty()) {
+        return;
+    }
+
+    for (auto &entry : container) {
+        if (entry.getValue() && entry.getValue()->getLevel() == currentLevel) {
+            entry.setTombStone();
+        }
+    }
+    currentLevel--;
+}
+
+void SymbolTable::print() {
+    if (container.empty()) {
+        return;
+    }
+    auto entryIndex = 0;
+    bool firstEntry = true;
+    for (const auto &entry : container) {
+        if (entry.getValue() && !entry.isTombStone()) {
+            std::cout
+                << (firstEntry ? "" : ";")
+                << entryIndex
+                << ' '
+                << entry.getValue()->getName()
+                << "//"
+                << entry.getValue()->getLevel();
+            firstEntry = false;
+        }
+        ++entryIndex;
+    }
+}
+
+SymbolTable::LookupResult SymbolTable::lookup(pam::ParsedLOOKUP *parsed) {
+    if (container.empty()) {
+        throw Undeclared(parsed->getNameToLookup());
+    }
+
+    for (long level = static_cast<long>(currentLevel); level >= 0; level--) {
+        auto firstHash = hashFunc(static_cast<unsigned long>(level), parsed->getNameToLookup());
+        auto secondHash = hashFunc(static_cast<unsigned long>(level), parsed->getNameToLookup());
+
+        auto iter = 0U;
+        auto initialPosition = getIndex(iter, firstHash, secondHash);
+        for (auto position = initialPosition;; position = getIndex(++iter, firstHash, secondHash)) {
+            if ((iter != 0 && position == initialPosition)
+                || (container[position].getValue() == nullptr)) {
+                // if we got back to initial index or we encounter emtpy slot
+                break;
+            }
+            if (!container[position].isTombStone()                                              // we not encounter deleted item
+                && container[position].getValue()->getName() == parsed->getNameToLookup()) {    // name is matching
+                return { position, &container[position], iter };
+            }
+        }
+    }
+    throw Undeclared(parsed->getNameToLookup());
+}
+
+SymbolTable::LookupResult SymbolTable::lookup(const std::string &name) {
+    if (container.empty()) {
+        throw Undeclared(name);
+    }
+
+    for (long level = static_cast<long>(currentLevel); level >= 0; level--) {
+        auto firstHash = hashFunc(static_cast<unsigned long>(level), name);
+        auto secondHash = hashFunc(static_cast<unsigned long>(level), name);
+
+        auto iter = 0U;
+        auto initialPosition = getIndex(iter, firstHash, secondHash);
+        for (auto position = initialPosition;; position = getIndex(++iter, firstHash, secondHash)) {
+            if ((iter != 0 && position == initialPosition)
+                || (container[position].getValue() == nullptr)) {
+                // if we got back to initial index or we encounter emtpy slot
+                break;
+            }
+            if (!container[position].isTombStone()                         // we not encounter deleted item
+                && container[position].getValue()->getName() == name) {    // name is matching
+                return { position, &container[position], iter };
+            }
+        }
+    }
+    throw Undeclared(name);
+}
+
+unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {    // NOLINT
+    if (container.empty()) {
+        throw Undeclared(parsed->getFunctionName());
+    }
+
+    auto totalEntry = 0UL;
+
+    auto functionLookupRes = lookup(parsed->getFunctionName());    // NOTE: Unhandled Undeclared will be handle by caller
+    auto *functionSymbol = functionLookupRes.ptr->getValue().get();
+    if (functionSymbol->getSymbolType() != Symbol::SymbolType::FUNC) {
+        throw sbtexcept::TypeMismatch();
+    }
+
+    auto *actualFunctionSymbol = static_cast<FunctionSymbol *>(functionSymbol);    // NOLINT conversion is safe
+    if (parsed->getParams().size() != actualFunctionSymbol->getParams().size()) {
+        throw sbtexcept::TypeMismatch();
+    }
+
+    for (auto i = 0U; i < parsed->getParams().size(); i++) {
+        const auto &param = parsed->getParams()[i];
+
+        if ('0' <= *param.begin() && *param.begin() <= '9') {                               // number
+            if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED) {    // if function param is not inferred
+                actualFunctionSymbol->getParams()[i] = Symbol::DataType::NUMBER;
+            } else if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::STRING) {    // type mismatch
+                throw sbtexcept::TypeMismatch();
+            }
+
+        } else if (*param.begin() == '\'') {                                                // string
+            if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED) {    // if function param is not inferred
+                actualFunctionSymbol->getParams()[i] = Symbol::DataType::STRING;
+            } else if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::NUMBER) {    // type mismatch
+                throw sbtexcept::TypeMismatch();
+            }
+
+        } else {                               // name
+            auto lookupRes = lookup(param);    // NOTE: Unhandled Undeclared will be handle by caller
+            auto *symbol = lookupRes.ptr->getValue().get();
+
+            if (symbol->getSymbolType() == Symbol::SymbolType::FUNC) {
+                throw sbtexcept::TypeMismatch();
+            }
+            auto *varSymbol = static_cast<VariableSymbol *>(symbol);    // NOLINT conversion is safe here
+
+            if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED
+                && varSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
+                throw sbtexcept::InferError();
+            }
+
+            if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED) {
+                actualFunctionSymbol->getParams()[i] = varSymbol->getDataType();
+            } else if (varSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
+                varSymbol->setDataType(actualFunctionSymbol->getParams()[i]);
+            } else if (varSymbol->getDataType() != actualFunctionSymbol->getParams()[i]) {
+                throw sbtexcept::TypeMismatch();
+            }
+
+            totalEntry += lookupRes.probes;
+        }
+    }
+
+    if (actualFunctionSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
+        actualFunctionSymbol->setDataType(Symbol::DataType::VOID);
+
+    } else if (actualFunctionSymbol->getDataType() != Symbol::DataType::VOID) {
+        throw sbtexcept::TypeMismatch();
+    }
+
+    totalEntry += functionLookupRes.probes;
+    return totalEntry;
+}
+
+unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) { // NOLINT
+    const auto &assignee = parsed->getName();
+    auto totalEntry = 0UL;
+
+    switch (parsed->getValueType()) {
+    case pam::AssignType::LITERAL_NUMBER: {
+        auto assigneeLookupRes = lookup(assignee);
+        auto *assigneeSymbol = assigneeLookupRes.ptr->getValue().get();
+        if (assigneeSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
+            throw sbtexcept::TypeMismatch();
+        }
+        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
+            assigneeSymbol->setDataType(Symbol::DataType::NUMBER);
+        } else if (assigneeSymbol->getDataType() != Symbol::DataType::NUMBER) {
+            throw sbtexcept::TypeMismatch();
+        }
+        totalEntry += assigneeLookupRes.probes;
+        break;
+    }
+    case pam::AssignType::LITERAL_STRING: {
+        auto assigneeLookupRes = lookup(assignee);
+        auto *assigneeSymbol = assigneeLookupRes.ptr->getValue().get();
+        if (assigneeSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
+            throw sbtexcept::TypeMismatch();
+        }
+        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
+            assigneeSymbol->setDataType(Symbol::DataType::STRING);
+        } else if (assigneeSymbol->getDataType() != Symbol::DataType::STRING) {
+            throw sbtexcept::TypeMismatch();
+        }
+        totalEntry += assigneeLookupRes.probes;
+        break;
+    }
+    case pam::AssignType::IDENTIFIER: {
+        auto assignerLookupRes = lookup(parsed->getValueName());
+        auto *assignerSymbol = assignerLookupRes.ptr->getValue().get();
+        if (assignerSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
+            throw sbtexcept::TypeMismatch();
+        }
+
+        auto assigneeLookupRes = lookup(parsed->getValueName());
+        auto *assigneeSymbol = assigneeLookupRes.ptr->getValue().get();
+        if (assigneeSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
+            throw sbtexcept::TypeMismatch();
+        }
+
+        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED && assignerSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
+            throw sbtexcept::InferError();
+        }
+
+        if (assignerSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
+            assignerSymbol->setDataType(assigneeSymbol->getDataType());
+
+        } else if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
+            assigneeSymbol->setDataType(assignerSymbol->getDataType());
+
+        } else if (assigneeSymbol->getDataType() != assignerSymbol->getDataType()) {
+            throw sbtexcept::TypeMismatch();
+        }
+
+        totalEntry += assigneeLookupRes.probes;
+        totalEntry += assignerLookupRes.probes;
+        break;
+    }
+    case pam::AssignType::FUNC_CALL: {
+        auto functionSymbolLookupRes = lookup(parsed->getValueName());
+        auto *functionSymbol = functionSymbolLookupRes.ptr->getValue().get();
+        if (functionSymbol->getSymbolType() == Symbol::SymbolType::VAR) {
+            throw sbtexcept::TypeMismatch();
+        }
+
+        auto *actualFunctionSymbol = static_cast<FunctionSymbol *>(functionSymbol);    // NOLINT conversion is safe
+        if (actualFunctionSymbol->getParams().size() != parsed->getParams().size()) {
+            throw sbtexcept::TypeMismatch();
+        }
+
+        for (auto i = 0UL; i < actualFunctionSymbol->getParams().size(); i++) {
+            const auto &param = parsed->getParams()[i];
+
+            if ('0' <= *param.begin() && *param.begin() <= '9') {                               // number
+                if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED) {    // if function param is not inferred
+                    actualFunctionSymbol->getParams()[i] = Symbol::DataType::NUMBER;
+                } else if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::STRING) {    // type mismatch
+                    throw sbtexcept::TypeMismatch();
+                }
+
+            } else if (*param.begin() == '\'') {                                                // string
+                if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED) {    // if function param is not inferred
+                    actualFunctionSymbol->getParams()[i] = Symbol::DataType::STRING;
+                } else if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::NUMBER) {    // type mismatch
+                    throw sbtexcept::TypeMismatch();
+                }
+
+            } else {                               // name
+                auto lookupRes = lookup(param);    // NOTE: Unhandled Undeclared will be handle by caller
+                auto *symbol = lookupRes.ptr->getValue().get();
+
+                if (symbol->getSymbolType() == Symbol::SymbolType::FUNC) {
+                    throw sbtexcept::TypeMismatch();
+                }
+                auto *varSymbol = static_cast<VariableSymbol *>(symbol);    // NOLINT conversion is safe here
+
+                if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED
+                    && varSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
+                    throw sbtexcept::InferError();
+                }
+
+                if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED) {
+                    actualFunctionSymbol->getParams()[i] = varSymbol->getDataType();
+                } else if (varSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
+                    varSymbol->setDataType(actualFunctionSymbol->getParams()[i]);
+                } else if (varSymbol->getDataType() != actualFunctionSymbol->getParams()[i]) {
+                    throw sbtexcept::TypeMismatch();
+                }
+
+                totalEntry += lookupRes.probes;
+            }
+        }
+        auto assigneeLookupRes = lookup(assignee);
+        auto *assigneeSymbol = assigneeLookupRes.ptr->getValue().get();
+        if (assigneeSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
+            throw sbtexcept::TypeMismatch();
+        }
+        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED && actualFunctionSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
+            throw sbtexcept::InferError();
+        }
+        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
+            assigneeSymbol->setDataType(actualFunctionSymbol->getDataType());
+        } else if (actualFunctionSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
+            actualFunctionSymbol->setDataType(assigneeSymbol->getDataType());
+        } else if (actualFunctionSymbol->getDataType() != assigneeSymbol->getDataType()) {
+            throw sbtexcept::TypeMismatch();
+        }
+        totalEntry += functionSymbolLookupRes.probes;
+        totalEntry += assigneeLookupRes.probes;
+    }
+    }
+    return totalEntry;
+}
+
+void SymbolTable::processLine(const std::string &line) {
     std::unique_ptr<pam::ParsedInstruction> parsed;
     try {
         parsed = pam::parseInstruction(line);
@@ -406,33 +946,62 @@ std::string SymbolTable::processLine(const std::string &line) {
     }
 
     switch (parsed->getType()) {
-    case pam::InstructionType::INSERT:
-        // TODO: Implement INSERT handler
-        break;
-    case pam::InstructionType::ASSIGN:
-        // TODO: Implement ASSIGN handler
-        break;
-    case pam::InstructionType::BEGIN:
-        // TODO: Implement BEGIN handler
-        break;
+    case pam::InstructionType::INSERT: {
+        auto *parsedInsert = static_cast<pam::ParsedINSERT *>(parsed.get());    // NOLINT
+        try {
+            unsigned long res = insert(parsedInsert);    // NOTE: This throw Redeclared, InvalidDeclaration or GenericOverflowException
+            std::cout << res << '\n';
+        } catch (sbtexcept::GenericOverflowException &e) {    // NOTE: Redeclared and InvalidDeclaration will be handle by caller
+            throw Overflow(line);
+        }
+        return;
+    }
+    case pam::InstructionType::ASSIGN: {
+        auto *parsedAssign = static_cast<pam::ParsedASSIGN *>(parsed.get());    // NOLINT
+        try {
+            unsigned long res = assign(parsedAssign);
+            std::cout << res << '\n';
+        } catch (sbtexcept::TypeMismatch &e) {
+            throw TypeMismatch(line);
+        } catch (sbtexcept::InferError &e) {
+            throw TypeCannotBeInfered(line);
+        }
+       return;
+    }
+    case pam::InstructionType::BEGIN: {
+        this->begin();
+        return;
+    }
     case pam::InstructionType::END:
-        // TODO: Implement END handler
-        break;
-    case pam::InstructionType::CALL:
-        // TODO: Implement CALL handler
-        break;
-    case pam::InstructionType::LOOKUP:
-        // TODO: Implement LOOKUP handler
-        break;
+        this->end();
+        return;
+    case pam::InstructionType::CALL: {
+        auto *parsedCall = static_cast<pam::ParsedCALL *>(parsed.get());    // NOLINT
+        try {
+            auto res = call(parsedCall);
+            std::cout << res << '\n';
+        } catch (sbtexcept::TypeMismatch &e) {
+            throw TypeMismatch(line);
+        } catch (sbtexcept::InferError &e) {
+            throw TypeCannotBeInfered(line);
+        }
+        return;
+    }
+    case pam::InstructionType::LOOKUP: {
+        auto *parsedLookup = static_cast<pam::ParsedLOOKUP *>(parsed.get());    // NOLINT
+        auto res = lookup(parsedLookup);                                        // NOTE: Undeclared will be handled by caller
+        std::cout << res.index << '\n';
+        return;
+    }
     case pam::InstructionType::PRINT:
-        // TODO: Implement PRINT handler
-        break;
+        print();
+        return;
     }
     throw std::runtime_error("Cannot reach here!");
 }
 
 void SymbolTable::detectUnclosedBlock() const {
     if (currentLevel != 0) {
-        throw UnclosedBlock(currentLevel);
+        throw UnclosedBlock(static_cast<int>(currentLevel));
     }
 }

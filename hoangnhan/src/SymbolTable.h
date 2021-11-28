@@ -1,5 +1,6 @@
 #ifndef SYMBOLTABLE_H
 #define SYMBOLTABLE_H
+#include "error.h"
 #include "main.h"
 
 template<typename T>
@@ -233,7 +234,7 @@ class ParsedASSIGN : public ParsedInstruction {
 
 public:
     ParsedASSIGN(std::string name, AssignType valueType, std::string valueName, FixedSizeVec<std::string> params);
-    const std::string &getName() const noexcept; 
+    const std::string &getName() const noexcept;
     AssignType getValueType() const noexcept;
     const std::string &getValueName() const noexcept;
     const FixedSizeVec<std::string> &getParams() const noexcept;
@@ -303,38 +304,95 @@ public:
         UN_INFERRED,
         NUMBER,
         STRING,
+        VOID
     };
 
 private:
-    const SymbolType symbolType;
-    const std::string name;
-    const unsigned long level = 0;
-    DataType dataType = DataType::UN_INFERRED;    // data type is always uninferred when insert
+    const SymbolType m_symbolType;
+    const std::string m_name;
+    const unsigned long m_level = 0;
+    // NOTE: This is data type of Variable symbol and Function symbol's return type
+    DataType m_dataType = DataType::UN_INFERRED;    // data type is always uninferred when insert
 
-protected:
-    Symbol(std::string name, unsigned long level, SymbolType symbolType);
+    mutable bool isKeyCalculated = false;
+    mutable std::string key;
 
 public:
+    Symbol(std::string &&name, unsigned long level, SymbolType symbolType);    // PERF: Allow construction of generic symbol use in LOOKUP
+
     const std::string &getName() const noexcept;
     unsigned long getLevel() const noexcept;
     DataType getDataType() const noexcept;
+    SymbolType getSymbolType() const noexcept;
     void setDataType(DataType type) noexcept;
+
+    std::string toKey() const;
 };
 
-class SymbolTable {
-    FixedSizeVec<std::unique_ptr<Symbol>> container;
+class FunctionSymbol : public Symbol {
+    FixedSizeVec<DataType> m_paramsType;
 
-    int currentLevel = 0;
-    bool printFlag = false;
+public:
+    FunctionSymbol(std::string name, unsigned long level, unsigned long paramsNum);
+
+    decltype(m_paramsType) &getParams() noexcept;
+};
+
+class VariableSymbol : public Symbol {
+public:
+    VariableSymbol(std::string name, unsigned long level);
+};
+
+namespace sbtexcept {
+class GenericOverflowException : std::exception {};
+class InvalidDeclaration : std::exception {};
+class UnknownBlock : std::exception {};
+class TypeMismatch : std::exception {};
+class InferError : std::exception {};
+}    // namespace sbtexcept
+
+class SymbolTable {
+    class HashEntry {
+        std::unique_ptr<Symbol> value = nullptr;
+        bool isTombstone = false;
+
+    public:
+        explicit HashEntry(std::unique_ptr<Symbol> &&value);
+        HashEntry() = default;
+        const std::unique_ptr<Symbol> &getValue() const noexcept;
+        void setValue(std::unique_ptr<Symbol> &&newVal);
+        bool isTombStone() const noexcept;
+        void setTombStone() noexcept;
+        void unsetTombStone() noexcept;
+    };
+
+    unsigned long hashFunc(unsigned long level, const std::string &name);
+
+    std::function<unsigned long(unsigned long level, const std::string &name)> doubleHashFunc;
+    std::function<unsigned long(unsigned int iter, unsigned long firstHash, unsigned long secondHash)> getIndex;
+
+    FixedSizeVec<HashEntry> container;
+
+    unsigned long currentLevel = 0;
 
     void setupHashTable(const std::string &setupLine);
-    std::string processLine(const std::string &line);
+    void processLine(const std::string &line);
+
+    unsigned long insert(const pam::ParsedINSERT *parsed);
+    unsigned long call(const pam::ParsedCALL *parsed);
+    unsigned long assign(const pam::ParsedASSIGN *parsed);
+    void print();
     void detectUnclosedBlock() const;
     void begin() noexcept;
     void end();
 
-    int lookup(const std::string &name, const std::string &line);
-
+    struct LookupResult {
+        unsigned long index = 0;
+        HashEntry *ptr = nullptr;
+        unsigned long probes = 0;
+    };
+    LookupResult lookup(pam::ParsedLOOKUP *parsed);
+    LookupResult lookup(const std::string &name);
 public:
     void run(const string &filename);
 };

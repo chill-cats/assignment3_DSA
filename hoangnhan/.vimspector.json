@@ -1,22 +1,18 @@
 {
     "configurations": {
-        "Debug main LLDB": {
+        "Launch": {
             "adapter": "CodeLLDB",
-            "breakpoints": {
-                "exception": {
-                    "cpp_throw": "Y",
-                    "cpp_catch": "N"
-                }
-            },
+            "filetypes": [ "cpp", "c", "objc", "rust" ],
             "configuration": {
                 "type": "lldb",
                 "request": "launch",
-                "program": "${workspaceRoot}/cmake-build/test/testparser",
-                "args": [],
-                "cwd":"${workspaceRoot}",
+                "program": "${workspaceRoot}/cmake-build/src/main",
+                "args": ["${workspaceRoot}/testcase/testA1"],
+                "cwd": "${workspaceRoot}",
+                "environment": [],
                 "externalConsole": true,
-                "stopAtEntry": true,
-                "MIMode":"lldb"
+                "MIMode": "lldb",
+                "MIDebuggerPath": "/usr/bin/lldb"
             }
         }
     }

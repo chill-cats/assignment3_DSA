@@ -74,5 +74,9 @@ if (USE_EXPERIMENTAL_PARSING)
     add_definitions(-DEXPERIMENTAL_PARSING)
 endif()
 
+# add_library(easyloggingpp STATIC ./external/easyloggingpp/easylogging++.cc ./external/easyloggingpp/easylogging++.h)
+# target_include_directories(easyloggingpp PUBLIC ./external/easyloggingpp)
+# target_link_libraries(easyloggingpp PRIVATE project_options)
+
 add_subdirectory(src)
 # add_subdirectory(src-refactor)

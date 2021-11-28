@@ -11,7 +11,7 @@ int main() {
     } catch (pam::GenericParsingException &e) {
         return 1;
     }
-    auto insert = static_cast<pam::ParsedINSERT *>(parsed.get());
+    auto *insert = static_cast<pam::ParsedINSERT *>(parsed.get());
     std::cout << "INSERT" << '\n';
     std::cout << insert->getName();
     if (insert->isFunc()) {
