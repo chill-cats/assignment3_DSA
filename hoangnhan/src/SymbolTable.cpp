@@ -1,5 +1,4 @@
 #include "SymbolTable.h"
-#include "error.h"
 
 namespace pam {    // parse and match
 
@@ -542,6 +541,23 @@ void SymbolTable::setupHashTable(const std::string &setupLine) {
         getIndex = [this, c](unsigned int iter, unsigned long firstHash, unsigned long) -> unsigned long {    // NOLINT
             return (firstHash + (c * iter) % container.size()) % container.size();
         };
+
+        doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {    // NOLINT
+            return std::numeric_limits<unsigned long>::max();
+        };
+
+#ifndef __EMSCRIPTEN__
+        std::clog << "Setup hash table with LINEAR probing, size: " << res.params[0] << " and c: " << res.params[1] << '\n';
+#endif
+        break;
+    }
+    case pam::ProbingMethod::DOUBLE: {
+        auto c = res.params[1];
+        getIndex = [this, c](unsigned int iter, unsigned long firstHash, unsigned long secondHash) -> unsigned long {
+            return (firstHash
+                       + ((c * iter * secondHash) % container.size()))
+                   % container.size();
+        };
         doubleHashFunc = [this](unsigned long level, const std::string &name) -> unsigned long {
             auto size = container.size() - 2;
             auto hash = level;
@@ -550,7 +566,7 @@ void SymbolTable::setupHashTable(const std::string &setupLine) {
                 unsigned long c = static_cast<unsigned long>(a - '0');    // NOLINT
                 hash %= size;
 
-                hash *= a > 10 ? 100 : 10;    // NOLINT
+                hash *= c > 10 ? 100 : 10;    // NOLINT
 
                 hash %= size;
                 c %= size;
@@ -559,18 +575,9 @@ void SymbolTable::setupHashTable(const std::string &setupLine) {
             }
             return hash + 1;
         };
-        break;
-    }
-    case pam::ProbingMethod::DOUBLE: {
-        auto c = res.params[1];
-        getIndex = [this, c](unsigned int iter, unsigned long firstHash, unsigned long secondHash) -> unsigned long {
-            return (firstHash
-                       + (c * iter * secondHash % container.size()))
-                   % container.size();
-        };
-        doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {    // NOLINT
-            return std::numeric_limits<unsigned long>::max();
-        };
+#ifndef __EMSCRIPTEN__
+        std::clog << "Setup hash table with DOUBLE probing, size: " << res.params[0] << " and c: " << res.params[1] << '\n';
+#endif
         break;
     }
     case pam::ProbingMethod::QUADRARTIC:
@@ -585,6 +592,9 @@ void SymbolTable::setupHashTable(const std::string &setupLine) {
         doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {
             return std::numeric_limits<unsigned long>::max();
         };
+#ifndef __EMSCRIPTEN__
+        std::clog << "Setup hash table with QUADRATIC probing, size: " << res.params[0] << ", c1: " << res.params[1] << " and c2: " << res.params[2] << '\n';
+#endif
         break;
     }
 }
@@ -605,19 +615,28 @@ unsigned long SymbolTable::insert(const pam::ParsedINSERT *parsed) {
         newSymbol = std::make_unique<VariableSymbol>(parsed->getName(), currentLevel);
     }
 
+#ifndef __EMSCRIPTEN__
+    std::clog << "Trying to insert with name: \"" << parsed->getName() << "\", is Func: " << parsed->isFunc() << '\n';
+#endif
+
     auto probingIter = 0U;
 
     const auto firstHash = hashFunc(currentLevel, newSymbol->getName());
-    const auto secondHash = hashFunc(currentLevel, newSymbol->getName());
+    const auto secondHash = doubleHashFunc(currentLevel, newSymbol->getName());
+
+#ifndef __EMSCRIPTEN__
+    std::clog << "firstHash: " << firstHash << ", secondHash: " << secondHash << '\n';
+#endif
 
     const auto initialPosition = getIndex(probingIter, firstHash, secondHash);
     auto position = initialPosition;
 
-    for (; !container[position].isTombStone()
-           && container[position].getValue();
+    for (; !container[position].isTombStone() && container[position].getValue();
          position = getIndex(++probingIter, firstHash, secondHash)) {
-
-        if ((probingIter != 0 && position == initialPosition) || probingIter > container.size()) {
+#ifndef __EMSCRIPTEN__
+    std::clog << "Trying to insert to position: " << position << '\n';
+#endif
+        if (/*(probingIter != 0 && position == initialPosition) || */ probingIter > container.size()) {
             throw sbtexcept::GenericOverflowException();
         }
 
@@ -625,7 +644,9 @@ unsigned long SymbolTable::insert(const pam::ParsedINSERT *parsed) {
             throw Redeclared(parsed->getName());
         }
     }
-
+#ifndef __EMSCRIPTEN__
+    std::clog << "Inserting to position: " << position << '\n';
+#endif
     container[position].setValue(std::move(newSymbol));
     container[position].unsetTombStone();
     return probingIter;
@@ -637,7 +658,7 @@ void SymbolTable::begin() noexcept {
 
 void SymbolTable::end() {
     if (currentLevel == 0) {
-        throw sbtexcept::UnknownBlock();
+        throw UnknownBlock();
     }
 
     if (container.empty()) {
@@ -671,6 +692,9 @@ void SymbolTable::print() {
         }
         ++entryIndex;
     }
+    if (!firstEntry) {
+        std::cout << '\n';
+    }
 }
 
 SymbolTable::LookupResult SymbolTable::lookup(pam::ParsedLOOKUP *parsed) {
@@ -680,14 +704,12 @@ SymbolTable::LookupResult SymbolTable::lookup(pam::ParsedLOOKUP *parsed) {
 
     for (long level = static_cast<long>(currentLevel); level >= 0; level--) {
         auto firstHash = hashFunc(static_cast<unsigned long>(level), parsed->getNameToLookup());
-        auto secondHash = hashFunc(static_cast<unsigned long>(level), parsed->getNameToLookup());
+        auto secondHash = doubleHashFunc(static_cast<unsigned long>(level), parsed->getNameToLookup());
 
         auto iter = 0U;
         auto initialPosition = getIndex(iter, firstHash, secondHash);
         for (auto position = initialPosition;; position = getIndex(++iter, firstHash, secondHash)) {
-            if ((iter != 0 && position == initialPosition)
-                || (container[position].getValue() == nullptr)) {
-                // if we got back to initial index or we encounter emtpy slot
+            if ((container[position].getValue() == nullptr) || iter >= container.size()) {
                 break;
             }
             if (!container[position].isTombStone()                                              // we not encounter deleted item
@@ -706,14 +728,12 @@ SymbolTable::LookupResult SymbolTable::lookup(const std::string &name) {
 
     for (long level = static_cast<long>(currentLevel); level >= 0; level--) {
         auto firstHash = hashFunc(static_cast<unsigned long>(level), name);
-        auto secondHash = hashFunc(static_cast<unsigned long>(level), name);
+        auto secondHash = doubleHashFunc(static_cast<unsigned long>(level), name);
 
         auto iter = 0U;
         auto initialPosition = getIndex(iter, firstHash, secondHash);
         for (auto position = initialPosition;; position = getIndex(++iter, firstHash, secondHash)) {
-            if ((iter != 0 && position == initialPosition)
-                || (container[position].getValue() == nullptr)) {
-                // if we got back to initial index or we encounter emtpy slot
+            if ((container[position].getValue() == nullptr) || iter >= container.size()) {
                 break;
             }
             if (!container[position].isTombStone()                         // we not encounter deleted item
@@ -797,7 +817,7 @@ unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {    // NOLINT
     return totalEntry;
 }
 
-unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) { // NOLINT
+unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {    // NOLINT
     const auto &assignee = parsed->getName();
     auto totalEntry = 0UL;
 
@@ -837,7 +857,7 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) { // NOLINT
             throw sbtexcept::TypeMismatch();
         }
 
-        auto assigneeLookupRes = lookup(parsed->getValueName());
+        auto assigneeLookupRes = lookup(assignee);
         auto *assigneeSymbol = assigneeLookupRes.ptr->getValue().get();
         if (assigneeSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
             throw sbtexcept::TypeMismatch();
@@ -923,6 +943,9 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) { // NOLINT
         if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED && actualFunctionSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
             throw sbtexcept::InferError();
         }
+        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED && actualFunctionSymbol->getDataType() == Symbol::DataType::VOID) {
+            throw sbtexcept::TypeMismatch();
+        }
         if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
             assigneeSymbol->setDataType(actualFunctionSymbol->getDataType());
         } else if (actualFunctionSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
@@ -964,9 +987,9 @@ void SymbolTable::processLine(const std::string &line) {
         } catch (sbtexcept::TypeMismatch &e) {
             throw TypeMismatch(line);
         } catch (sbtexcept::InferError &e) {
-            throw TypeCannotBeInfered(line);
+            throw TypeCannotBeInferred(line);
         }
-       return;
+        return;
     }
     case pam::InstructionType::BEGIN: {
         this->begin();
@@ -983,7 +1006,7 @@ void SymbolTable::processLine(const std::string &line) {
         } catch (sbtexcept::TypeMismatch &e) {
             throw TypeMismatch(line);
         } catch (sbtexcept::InferError &e) {
-            throw TypeCannotBeInfered(line);
+            throw TypeCannotBeInferred(line);
         }
         return;
     }

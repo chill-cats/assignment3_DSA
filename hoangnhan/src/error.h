@@ -86,11 +86,11 @@ public:
     }
 };
 
-class TypeCannotBeInfered : public exception {
+class TypeCannotBeInferred : public exception {
     string mess;
 
 public:
-    explicit TypeCannotBeInfered(const string &instruction) : mess("TypeCannotBeInfered: " + instruction) {}
+    explicit TypeCannotBeInferred(const string &instruction) : mess("TypeCannotBeInferred: " + instruction) {}
     const char *what() const noexcept override {
         return mess.c_str();
     }

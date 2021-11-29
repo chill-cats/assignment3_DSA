@@ -1,6 +1,5 @@
 #ifndef SYMBOLTABLE_H
 #define SYMBOLTABLE_H
-#include "error.h"
 #include "main.h"
 
 template<typename T>
@@ -327,6 +326,8 @@ public:
     void setDataType(DataType type) noexcept;
 
     std::string toKey() const;
+
+    virtual ~Symbol() = default;
 };
 
 class FunctionSymbol : public Symbol {

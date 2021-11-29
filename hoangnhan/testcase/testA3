@@ -1,0 +1,5 @@
+DOUBLE 338 811
+INSERT gAW
+LOOKUP gAW
+INSERT ju 4
+CALL ju('mYsjz',754,'qmU',gAW)
