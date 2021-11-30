@@ -390,10 +390,16 @@ class SymbolTable {
     struct LookupResult {
         unsigned long index = 0;
         HashEntry *ptr = nullptr;
-        unsigned long probes = 0;
+        unsigned long numOfProbes = 0;
     };
     LookupResult lookup(pam::ParsedLOOKUP *parsed);
     LookupResult lookup(const std::string &name);
+
+    static void compareTypeAndInferIfNeeded(Symbol::DataType targetType, Symbol::DataType &unknownType);
+    static void compareTypeAndInferIfNeeded(Symbol::DataType targetType, Symbol &unknownSymbol);
+    static void compareTypeAndInferIfNeeded(Symbol &unknownSymbol1, Symbol &unknownSymbol2);
+    static void compareTypeAndInferIfNeeded(Symbol::DataType &unknownType, Symbol &unknownSymbol);
+
 public:
     void run(const string &filename);
 };

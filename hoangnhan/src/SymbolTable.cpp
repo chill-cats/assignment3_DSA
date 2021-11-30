@@ -726,12 +726,59 @@ SymbolTable::LookupResult SymbolTable::lookup(const std::string &name) {
     throw Undeclared(name);
 }
 
-unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {    // NOLINT
+void SymbolTable::compareTypeAndInferIfNeeded(Symbol::DataType targetType, Symbol::DataType &unknownType) {
+    if (unknownType == Symbol::DataType::UN_INFERRED) {
+        unknownType = targetType;
+    } else if (unknownType != targetType) {
+        throw sbtexcept::TypeMismatch();
+    }
+}
+
+void SymbolTable::compareTypeAndInferIfNeeded(Symbol::DataType targetType, Symbol &unknownSymbol) {
+    if (unknownSymbol.getDataType() == Symbol::DataType::UN_INFERRED) {
+        unknownSymbol.setDataType(targetType);
+    } else if (unknownSymbol.getDataType() != targetType) {
+        throw sbtexcept::TypeMismatch();
+    }
+}
+
+void SymbolTable::compareTypeAndInferIfNeeded(Symbol::DataType &unknownType, Symbol &unknownSymbol) {
+    if (unknownType == Symbol::DataType::UN_INFERRED
+        && unknownSymbol.getDataType() == Symbol::DataType::UN_INFERRED) {
+        throw sbtexcept::InferError();
+    }
+
+    if (unknownType == Symbol::DataType::UN_INFERRED) {
+        unknownType = unknownSymbol.getDataType();
+    } else if (unknownSymbol.getDataType() == Symbol::DataType::UN_INFERRED) {
+        unknownSymbol.setDataType(unknownType);
+    } else if (unknownSymbol.getDataType() != unknownType) {
+        throw sbtexcept::TypeMismatch();
+    }
+}
+
+void SymbolTable::compareTypeAndInferIfNeeded(Symbol &unknownSymbol1, Symbol &unknownSymbol2) {
+        if (unknownSymbol1.getDataType() == Symbol::DataType::UN_INFERRED && unknownSymbol2.getDataType() == Symbol::DataType::UN_INFERRED) {
+            throw sbtexcept::InferError();
+        }
+
+        if (unknownSymbol2.getDataType() == Symbol::DataType::UN_INFERRED) {
+            unknownSymbol2.setDataType(unknownSymbol1.getDataType());
+
+        } else if (unknownSymbol1.getDataType() == Symbol::DataType::UN_INFERRED) {
+            unknownSymbol1.setDataType(unknownSymbol2.getDataType());
+
+        } else if (unknownSymbol1.getDataType() != unknownSymbol2.getDataType()) {
+            throw sbtexcept::TypeMismatch();
+        }
+}
+
+unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {
     if (container.empty()) {
         throw Undeclared(parsed->getFunctionName());
     }
 
-    auto totalEntry = 0UL;
+    auto totalNumOfProbes = 0UL;
 
     auto functionLookupRes = lookup(parsed->getFunctionName());    // NOTE: Unhandled Undeclared will be handle by caller
     auto *functionSymbol = functionLookupRes.ptr->getValue().get();
@@ -739,27 +786,19 @@ unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {    // NOLINT
         throw sbtexcept::TypeMismatch();
     }
 
-    auto *actualFunctionSymbol = static_cast<FunctionSymbol *>(functionSymbol);    // NOLINT conversion is safe
-    if (parsed->getParams().size() != actualFunctionSymbol->getParams().size()) {
+    auto *castedFuncSymbol = static_cast<FunctionSymbol *>(functionSymbol);    // NOLINT conversion is safe
+    if (parsed->getParams().size() != castedFuncSymbol->getParams().size()) {
         throw sbtexcept::TypeMismatch();
     }
 
     for (auto i = 0U; i < parsed->getParams().size(); i++) {
         const auto &param = parsed->getParams()[i];
 
-        if ('0' <= *param.begin() && *param.begin() <= '9') {                               // number
-            if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED) {    // if function param is not inferred
-                actualFunctionSymbol->getParams()[i] = Symbol::DataType::NUMBER;
-            } else if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::STRING) {    // type mismatch
-                throw sbtexcept::TypeMismatch();
-            }
+        if ('0' <= *param.begin() && *param.begin() <= '9') {    // number
+            compareTypeAndInferIfNeeded(Symbol::DataType::NUMBER, castedFuncSymbol->getParams()[i]);
 
-        } else if (*param.begin() == '\'') {                                                // string
-            if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED) {    // if function param is not inferred
-                actualFunctionSymbol->getParams()[i] = Symbol::DataType::STRING;
-            } else if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::NUMBER) {    // type mismatch
-                throw sbtexcept::TypeMismatch();
-            }
+        } else if (*param.begin() == '\'') {    // string
+            compareTypeAndInferIfNeeded(Symbol::DataType::STRING, castedFuncSymbol->getParams()[i]);
 
         } else {                               // name
             auto lookupRes = lookup(param);    // NOTE: Unhandled Undeclared will be handle by caller
@@ -770,35 +809,17 @@ unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {    // NOLINT
             }
             auto *varSymbol = static_cast<VariableSymbol *>(symbol);    // NOLINT conversion is safe here
 
-            if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED
-                && varSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-                throw sbtexcept::InferError();
-            }
+            static_cast<void (&)(Symbol::DataType&, Symbol&)>(compareTypeAndInferIfNeeded)(castedFuncSymbol->getParams()[i], *varSymbol);
 
-            if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED) {
-                actualFunctionSymbol->getParams()[i] = varSymbol->getDataType();
-            } else if (varSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-                varSymbol->setDataType(actualFunctionSymbol->getParams()[i]);
-            } else if (varSymbol->getDataType() != actualFunctionSymbol->getParams()[i]) {
-                throw sbtexcept::TypeMismatch();
-            }
-
-            totalEntry += lookupRes.probes;
+            totalNumOfProbes += lookupRes.numOfProbes;
         }
     }
-
-    if (actualFunctionSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-        actualFunctionSymbol->setDataType(Symbol::DataType::VOID);
-
-    } else if (actualFunctionSymbol->getDataType() != Symbol::DataType::VOID) {
-        throw sbtexcept::TypeMismatch();
-    }
-
-    totalEntry += functionLookupRes.probes;
-    return totalEntry;
+    compareTypeAndInferIfNeeded(Symbol::DataType::VOID, *castedFuncSymbol);
+    totalNumOfProbes += functionLookupRes.numOfProbes;
+    return totalNumOfProbes;
 }
 
-unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {    // NOLINT
+unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) { //NOLINT
     const auto &assignee = parsed->getName();
     auto totalEntry = 0UL;
 
@@ -809,12 +830,9 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {    // NOLIN
         if (assigneeSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
             throw sbtexcept::TypeMismatch();
         }
-        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-            assigneeSymbol->setDataType(Symbol::DataType::NUMBER);
-        } else if (assigneeSymbol->getDataType() != Symbol::DataType::NUMBER) {
-            throw sbtexcept::TypeMismatch();
-        }
-        totalEntry += assigneeLookupRes.probes;
+        compareTypeAndInferIfNeeded(Symbol::DataType::NUMBER, *assigneeSymbol);
+
+        totalEntry += assigneeLookupRes.numOfProbes;
         break;
     }
     case pam::AssignType::LITERAL_STRING: {
@@ -823,12 +841,9 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {    // NOLIN
         if (assigneeSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
             throw sbtexcept::TypeMismatch();
         }
-        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-            assigneeSymbol->setDataType(Symbol::DataType::STRING);
-        } else if (assigneeSymbol->getDataType() != Symbol::DataType::STRING) {
-            throw sbtexcept::TypeMismatch();
-        }
-        totalEntry += assigneeLookupRes.probes;
+        compareTypeAndInferIfNeeded(Symbol::DataType::STRING, *assigneeSymbol);
+
+        totalEntry += assigneeLookupRes.numOfProbes;
         break;
     }
     case pam::AssignType::IDENTIFIER: {
@@ -843,23 +858,10 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {    // NOLIN
         if (assigneeSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
             throw sbtexcept::TypeMismatch();
         }
+        compareTypeAndInferIfNeeded(*assigneeSymbol, *assignerSymbol);
 
-        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED && assignerSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-            throw sbtexcept::InferError();
-        }
-
-        if (assignerSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-            assignerSymbol->setDataType(assigneeSymbol->getDataType());
-
-        } else if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-            assigneeSymbol->setDataType(assignerSymbol->getDataType());
-
-        } else if (assigneeSymbol->getDataType() != assignerSymbol->getDataType()) {
-            throw sbtexcept::TypeMismatch();
-        }
-
-        totalEntry += assigneeLookupRes.probes;
-        totalEntry += assignerLookupRes.probes;
+        totalEntry += assigneeLookupRes.numOfProbes;
+        totalEntry += assignerLookupRes.numOfProbes;
         break;
     }
     case pam::AssignType::FUNC_CALL: {
@@ -878,19 +880,9 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {    // NOLIN
             const auto &param = parsed->getParams()[i];
 
             if ('0' <= *param.begin() && *param.begin() <= '9') {                               // number
-                if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED) {    // if function param is not inferred
-                    actualFunctionSymbol->getParams()[i] = Symbol::DataType::NUMBER;
-                } else if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::STRING) {    // type mismatch
-                    throw sbtexcept::TypeMismatch();
-                }
-
+                compareTypeAndInferIfNeeded(Symbol::DataType::NUMBER, actualFunctionSymbol->getParams()[i]);
             } else if (*param.begin() == '\'') {                                                // string
-                if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED) {    // if function param is not inferred
-                    actualFunctionSymbol->getParams()[i] = Symbol::DataType::STRING;
-                } else if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::NUMBER) {    // type mismatch
-                    throw sbtexcept::TypeMismatch();
-                }
-
+                compareTypeAndInferIfNeeded(Symbol::DataType::STRING, actualFunctionSymbol->getParams()[i]);
             } else {                               // name
                 auto lookupRes = lookup(param);    // NOTE: Unhandled Undeclared will be handle by caller
                 auto *symbol = lookupRes.ptr->getValue().get();
@@ -899,21 +891,9 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {    // NOLIN
                     throw sbtexcept::TypeMismatch();
                 }
                 auto *varSymbol = static_cast<VariableSymbol *>(symbol);    // NOLINT conversion is safe here
+                compareTypeAndInferIfNeeded(*actualFunctionSymbol, *varSymbol);
 
-                if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED
-                    && varSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-                    throw sbtexcept::InferError();
-                }
-
-                if (actualFunctionSymbol->getParams()[i] == Symbol::DataType::UN_INFERRED) {
-                    actualFunctionSymbol->getParams()[i] = varSymbol->getDataType();
-                } else if (varSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-                    varSymbol->setDataType(actualFunctionSymbol->getParams()[i]);
-                } else if (varSymbol->getDataType() != actualFunctionSymbol->getParams()[i]) {
-                    throw sbtexcept::TypeMismatch();
-                }
-
-                totalEntry += lookupRes.probes;
+                totalEntry += lookupRes.numOfProbes;
             }
         }
         auto assigneeLookupRes = lookup(assignee);
@@ -921,21 +901,13 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {    // NOLIN
         if (assigneeSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
             throw sbtexcept::TypeMismatch();
         }
-        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED && actualFunctionSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-            throw sbtexcept::InferError();
-        }
         if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED && actualFunctionSymbol->getDataType() == Symbol::DataType::VOID) {
             throw sbtexcept::TypeMismatch();
         }
-        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-            assigneeSymbol->setDataType(actualFunctionSymbol->getDataType());
-        } else if (actualFunctionSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-            actualFunctionSymbol->setDataType(assigneeSymbol->getDataType());
-        } else if (actualFunctionSymbol->getDataType() != assigneeSymbol->getDataType()) {
-            throw sbtexcept::TypeMismatch();
-        }
-        totalEntry += functionSymbolLookupRes.probes;
-        totalEntry += assigneeLookupRes.probes;
+        compareTypeAndInferIfNeeded(*assigneeSymbol, *actualFunctionSymbol);
+
+        totalEntry += functionSymbolLookupRes.numOfProbes;
+        totalEntry += assigneeLookupRes.numOfProbes;
     }
     }
     return totalEntry;
