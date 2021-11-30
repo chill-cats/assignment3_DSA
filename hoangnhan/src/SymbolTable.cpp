@@ -634,7 +634,7 @@ unsigned long SymbolTable::insert(const pam::ParsedINSERT *parsed) {
     for (; !container[position].isTombStone() && container[position].getValue();
          position = getIndex(++probingIter, firstHash, secondHash)) {
 #ifndef __EMSCRIPTEN__
-    std::clog << "Trying to insert to position: " << position << '\n';
+        std::clog << "Trying to insert to position: " << position << '\n';
 #endif
         if (/*(probingIter != 0 && position == initialPosition) || */ probingIter > container.size()) {
             throw sbtexcept::GenericOverflowException();
@@ -698,27 +698,7 @@ void SymbolTable::print() {
 }
 
 SymbolTable::LookupResult SymbolTable::lookup(pam::ParsedLOOKUP *parsed) {
-    if (container.empty()) {
-        throw Undeclared(parsed->getNameToLookup());
-    }
-
-    for (long level = static_cast<long>(currentLevel); level >= 0; level--) {
-        auto firstHash = hashFunc(static_cast<unsigned long>(level), parsed->getNameToLookup());
-        auto secondHash = doubleHashFunc(static_cast<unsigned long>(level), parsed->getNameToLookup());
-
-        auto iter = 0U;
-        auto initialPosition = getIndex(iter, firstHash, secondHash);
-        for (auto position = initialPosition;; position = getIndex(++iter, firstHash, secondHash)) {
-            if ((container[position].getValue() == nullptr) || iter >= container.size()) {
-                break;
-            }
-            if (!container[position].isTombStone()                                              // we not encounter deleted item
-                && container[position].getValue()->getName() == parsed->getNameToLookup()) {    // name is matching
-                return { position, &container[position], iter };
-            }
-        }
-    }
-    throw Undeclared(parsed->getNameToLookup());
+    return lookup(parsed->getNameToLookup());
 }
 
 SymbolTable::LookupResult SymbolTable::lookup(const std::string &name) {
@@ -733,10 +713,11 @@ SymbolTable::LookupResult SymbolTable::lookup(const std::string &name) {
         auto iter = 0U;
         auto initialPosition = getIndex(iter, firstHash, secondHash);
         for (auto position = initialPosition;; position = getIndex(++iter, firstHash, secondHash)) {
-            if ((container[position].getValue() == nullptr) || iter >= container.size()) {
+            if (container[position].getValue() == nullptr || iter >= container.size()) {
                 break;
             }
-            if (!container[position].isTombStone()                         // we not encounter deleted item
+            if (!container[position].isTombStone()    // we not encounter deleted item
+                && container[position].getValue()->getLevel() == static_cast<unsigned long>(level)
                 && container[position].getValue()->getName() == name) {    // name is matching
                 return { position, &container[position], iter };
             }
