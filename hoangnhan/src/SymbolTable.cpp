@@ -758,19 +758,19 @@ void SymbolTable::compareTypeAndInferIfNeeded(Symbol::DataType &unknownType, Sym
 }
 
 void SymbolTable::compareTypeAndInferIfNeeded(Symbol &unknownSymbol1, Symbol &unknownSymbol2) {
-        if (unknownSymbol1.getDataType() == Symbol::DataType::UN_INFERRED && unknownSymbol2.getDataType() == Symbol::DataType::UN_INFERRED) {
-            throw sbtexcept::InferError();
-        }
+    if (unknownSymbol1.getDataType() == Symbol::DataType::UN_INFERRED && unknownSymbol2.getDataType() == Symbol::DataType::UN_INFERRED) {
+        throw sbtexcept::InferError();
+    }
 
-        if (unknownSymbol2.getDataType() == Symbol::DataType::UN_INFERRED) {
-            unknownSymbol2.setDataType(unknownSymbol1.getDataType());
+    if (unknownSymbol2.getDataType() == Symbol::DataType::UN_INFERRED) {
+        unknownSymbol2.setDataType(unknownSymbol1.getDataType());
 
-        } else if (unknownSymbol1.getDataType() == Symbol::DataType::UN_INFERRED) {
-            unknownSymbol1.setDataType(unknownSymbol2.getDataType());
+    } else if (unknownSymbol1.getDataType() == Symbol::DataType::UN_INFERRED) {
+        unknownSymbol1.setDataType(unknownSymbol2.getDataType());
 
-        } else if (unknownSymbol1.getDataType() != unknownSymbol2.getDataType()) {
-            throw sbtexcept::TypeMismatch();
-        }
+    } else if (unknownSymbol1.getDataType() != unknownSymbol2.getDataType()) {
+        throw sbtexcept::TypeMismatch();
+    }
 }
 
 unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {
@@ -809,7 +809,7 @@ unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {
             }
             auto *varSymbol = static_cast<VariableSymbol *>(symbol);    // NOLINT conversion is safe here
 
-            static_cast<void (&)(Symbol::DataType&, Symbol&)>(compareTypeAndInferIfNeeded)(castedFuncSymbol->getParams()[i], *varSymbol);
+            static_cast<void (&)(Symbol::DataType &, Symbol &)>(compareTypeAndInferIfNeeded)(castedFuncSymbol->getParams()[i], *varSymbol);
 
             totalNumOfProbes += lookupRes.numOfProbes;
         }
@@ -819,7 +819,7 @@ unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {
     return totalNumOfProbes;
 }
 
-unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) { //NOLINT
+unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {    // NOLINT
     const auto &assignee = parsed->getName();
     auto totalEntry = 0UL;
 
@@ -879,9 +879,9 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) { //NOLINT
         for (auto i = 0UL; i < actualFunctionSymbol->getParams().size(); i++) {
             const auto &param = parsed->getParams()[i];
 
-            if ('0' <= *param.begin() && *param.begin() <= '9') {                               // number
+            if ('0' <= *param.begin() && *param.begin() <= '9') {    // number
                 compareTypeAndInferIfNeeded(Symbol::DataType::NUMBER, actualFunctionSymbol->getParams()[i]);
-            } else if (*param.begin() == '\'') {                                                // string
+            } else if (*param.begin() == '\'') {    // string
                 compareTypeAndInferIfNeeded(Symbol::DataType::STRING, actualFunctionSymbol->getParams()[i]);
             } else {                               // name
                 auto lookupRes = lookup(param);    // NOTE: Unhandled Undeclared will be handle by caller
@@ -891,7 +891,7 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) { //NOLINT
                     throw sbtexcept::TypeMismatch();
                 }
                 auto *varSymbol = static_cast<VariableSymbol *>(symbol);    // NOLINT conversion is safe here
-                compareTypeAndInferIfNeeded(*actualFunctionSymbol, *varSymbol);
+                static_cast<void (&)(Symbol::DataType &, Symbol &)>(compareTypeAndInferIfNeeded)(actualFunctionSymbol->getParams()[i], *varSymbol);
 
                 totalEntry += lookupRes.numOfProbes;
             }

@@ -7,7 +7,7 @@
                 "type": "lldb",
                 "request": "launch",
                 "program": "${workspaceRoot}/cmake-build/src/main",
-                "args": ["${workspaceRoot}/testcase/testA3"],
+                "args": ["${workspaceRoot}/testcase/testA5"],
                 "cwd": "${workspaceRoot}",
                 "environment": [],
                 "externalConsole": true,
