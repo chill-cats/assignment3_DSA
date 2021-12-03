@@ -1,7 +1,7 @@
 # HOW TO BUILD:
 ## Prerequisite:
 - CMake 3.15 and up
-- CCache
+- Clang or GCC with support for c++14
 
 ## Build process:
 To build the main program, from `hoangnhan` folder, run the following command
