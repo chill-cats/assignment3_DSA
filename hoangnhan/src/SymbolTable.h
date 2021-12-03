@@ -381,7 +381,10 @@ class SymbolTable {
 
     unsigned long insert(const pam::ParsedINSERT *parsed);
     unsigned long call(const pam::ParsedCALL *parsed);
+ 
+    unsigned long assignWithVarWithType(const std::string &name, Symbol::DataType targetType);
     unsigned long assign(const pam::ParsedASSIGN *parsed);
+    
     void print();
     void detectUnclosedBlock() const;
     void begin() noexcept;
@@ -399,7 +402,14 @@ class SymbolTable {
     static void compareTypeAndInferIfNeeded(Symbol::DataType targetType, Symbol &unknownSymbol);
     static void compareTypeAndInferIfNeeded(Symbol &unknownSymbol1, Symbol &unknownSymbol2);
     static void compareTypeAndInferIfNeeded(Symbol::DataType &unknownType, Symbol &unknownSymbol);
+    
+    enum class ParamType {
+        STRING,
+        NUMBER,
+        IDENTIFIER,
+    };
 
+    static ParamType fastParamTypeDeduce(const std::string &param);
 public:
     void run(const string &filename);
 };

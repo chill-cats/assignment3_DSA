@@ -819,33 +819,43 @@ unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {
     return totalNumOfProbes;
 }
 
-unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {    // NOLINT
+unsigned long SymbolTable::assignWithVarWithType(const std::string &name, Symbol::DataType targetType) {
+
+    auto assigneeLookupRes = lookup(name);
+    auto *assigneeSymbol = assigneeLookupRes.ptr->getValue().get();
+    if (assigneeSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
+        throw sbtexcept::TypeMismatch();
+    }
+    static_cast<void (&)(Symbol::DataType, Symbol &)>(compareTypeAndInferIfNeeded)(targetType, *assigneeSymbol);
+
+    return assigneeLookupRes.numOfProbes;
+};
+
+SymbolTable::ParamType SymbolTable::fastParamTypeDeduce(const std::string &param) {
+    if ('0' <= *param.begin() && *param.begin() <= '9') {    // number
+        return ParamType::NUMBER;
+    }
+
+    if ('\'' == *param.begin()) {
+        return ParamType::STRING;
+    }
+
+    return ParamType::IDENTIFIER;
+}
+
+unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
     const auto &assignee = parsed->getName();
     auto totalEntry = 0UL;
 
     switch (parsed->getValueType()) {
-    case pam::AssignType::LITERAL_NUMBER: {
-        auto assigneeLookupRes = lookup(assignee);
-        auto *assigneeSymbol = assigneeLookupRes.ptr->getValue().get();
-        if (assigneeSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
-            throw sbtexcept::TypeMismatch();
-        }
-        compareTypeAndInferIfNeeded(Symbol::DataType::NUMBER, *assigneeSymbol);
-
-        totalEntry += assigneeLookupRes.numOfProbes;
+    case pam::AssignType::LITERAL_NUMBER:
+        totalEntry += assignWithVarWithType(assignee, Symbol::DataType::NUMBER);
         break;
-    }
-    case pam::AssignType::LITERAL_STRING: {
-        auto assigneeLookupRes = lookup(assignee);
-        auto *assigneeSymbol = assigneeLookupRes.ptr->getValue().get();
-        if (assigneeSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
-            throw sbtexcept::TypeMismatch();
-        }
-        compareTypeAndInferIfNeeded(Symbol::DataType::STRING, *assigneeSymbol);
 
-        totalEntry += assigneeLookupRes.numOfProbes;
+    case pam::AssignType::LITERAL_STRING:
+        totalEntry += assignWithVarWithType(assignee, Symbol::DataType::STRING);
         break;
-    }
+
     case pam::AssignType::IDENTIFIER: {
         auto assignerLookupRes = lookup(parsed->getValueName());
         auto *assignerSymbol = assignerLookupRes.ptr->getValue().get();
@@ -879,11 +889,15 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {    // NOLIN
         for (auto i = 0UL; i < actualFunctionSymbol->getParams().size(); i++) {
             const auto &param = parsed->getParams()[i];
 
-            if ('0' <= *param.begin() && *param.begin() <= '9') {    // number
+            switch (fastParamTypeDeduce(param)) {
+            case ParamType::NUMBER:
                 compareTypeAndInferIfNeeded(Symbol::DataType::NUMBER, actualFunctionSymbol->getParams()[i]);
-            } else if (*param.begin() == '\'') {    // string
+                break;
+
+            case ParamType::STRING:
                 compareTypeAndInferIfNeeded(Symbol::DataType::STRING, actualFunctionSymbol->getParams()[i]);
-            } else {                               // name
+                break;
+            case ParamType::IDENTIFIER:
                 auto lookupRes = lookup(param);    // NOTE: Unhandled Undeclared will be handle by caller
                 auto *symbol = lookupRes.ptr->getValue().get();
 
@@ -896,14 +910,18 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {    // NOLIN
                 totalEntry += lookupRes.numOfProbes;
             }
         }
+
         auto assigneeLookupRes = lookup(assignee);
         auto *assigneeSymbol = assigneeLookupRes.ptr->getValue().get();
+
         if (assigneeSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
             throw sbtexcept::TypeMismatch();
         }
+
         if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED && actualFunctionSymbol->getDataType() == Symbol::DataType::VOID) {
             throw sbtexcept::TypeMismatch();
         }
+
         compareTypeAndInferIfNeeded(*assigneeSymbol, *actualFunctionSymbol);
 
         totalEntry += functionSymbolLookupRes.numOfProbes;
