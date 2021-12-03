@@ -1,0 +1,6 @@
+QUADRATIC 3 95 55
+PRINT
+INSERT qKeYoUxhv6fts2hvmxsNukndnzqjca
+INSERT ivssk7kXncgHiVmUkCaSzmyqbtqHc2movViRcZcSuZu7d2p8gB 1
+INSERT iKxkqPvuzIxAnIzcrGyIwjwimYyIaBoEgG
+PRINT

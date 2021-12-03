@@ -546,7 +546,7 @@ void SymbolTable::setupHashTable(const std::string &setupLine) {
             return std::numeric_limits<unsigned long>::max();
         };
 
-#ifndef __EMSCRIPTEN__
+#ifdef DEBUG
         std::clog << "Setup hash table with LINEAR probing, size: " << res.params[0] << " and c: " << res.params[1] << '\n';
 #endif
         break;
@@ -575,7 +575,7 @@ void SymbolTable::setupHashTable(const std::string &setupLine) {
             }
             return hash + 1;
         };
-#ifndef __EMSCRIPTEN__
+#ifdef DEBUG
         std::clog << "Setup hash table with DOUBLE probing, size: " << res.params[0] << " and c: " << res.params[1] << '\n';
 #endif
         break;
@@ -592,7 +592,7 @@ void SymbolTable::setupHashTable(const std::string &setupLine) {
         doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {
             return std::numeric_limits<unsigned long>::max();
         };
-#ifndef __EMSCRIPTEN__
+#ifdef DEBUG
         std::clog << "Setup hash table with QUADRATIC probing, size: " << res.params[0] << ", c1: " << res.params[1] << " and c2: " << res.params[2] << '\n';
 #endif
         break;
@@ -615,7 +615,7 @@ unsigned long SymbolTable::insert(const pam::ParsedINSERT *parsed) {
         newSymbol = std::make_unique<VariableSymbol>(parsed->getName(), currentLevel);
     }
 
-#ifndef __EMSCRIPTEN__
+#ifdef DEBUG
     std::clog << "Trying to insert with name: \"" << parsed->getName() << "\", is Func: " << parsed->isFunc() << '\n';
 #endif
 
@@ -624,7 +624,7 @@ unsigned long SymbolTable::insert(const pam::ParsedINSERT *parsed) {
     const auto firstHash = hashFunc(currentLevel, newSymbol->getName());
     const auto secondHash = doubleHashFunc(currentLevel, newSymbol->getName());
 
-#ifndef __EMSCRIPTEN__
+#ifdef DEBUG
     std::clog << "firstHash: " << firstHash << ", secondHash: " << secondHash << '\n';
 #endif
 
@@ -633,7 +633,7 @@ unsigned long SymbolTable::insert(const pam::ParsedINSERT *parsed) {
 
     for (; !container[position].isTombStone() && container[position].getValue();
          position = getIndex(++probingIter, firstHash, secondHash)) {
-#ifndef __EMSCRIPTEN__
+#ifdef DEBUG
         std::clog << "Trying to insert to position: " << position << '\n';
 #endif
         if (/*(probingIter != 0 && position == initialPosition) || */ probingIter > container.size()) {
@@ -644,7 +644,7 @@ unsigned long SymbolTable::insert(const pam::ParsedINSERT *parsed) {
             throw Redeclared(parsed->getName());
         }
     }
-#ifndef __EMSCRIPTEN__
+#ifdef DEBUG
     std::clog << "Inserting to position: " << position << '\n';
 #endif
     container[position].setValue(std::move(newSymbol));
