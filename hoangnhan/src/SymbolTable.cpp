@@ -526,7 +526,7 @@ void SymbolTable::setupHashTable(const std::string &setupLine) {
 
 std::unique_ptr<Symbol> SymbolTable::constructNewSymbol(const std::string &name, bool isFunc, unsigned long paramNum) {
     if (isFunc) {
-        if (currentLevel != 0) {
+        if (currentLevel == 0) {
             return std::make_unique<FunctionSymbol>(name, currentLevel, paramNum);
         }
         throw InvalidDeclaration(name);
