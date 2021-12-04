@@ -13,8 +13,10 @@ void test(const string &filename) {
     delete st;
     auto end = std::chrono::high_resolution_clock::now();
     std::cout.flush();
+#ifdef DEBUG
     std::clog << "\n============\nTime: ";
     std::clog << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "µs\n";
+#endif
 }
 
 int main(int argc, char **argv) {

@@ -559,7 +559,7 @@ unsigned long SymbolTable::findInsertPosition(const std::unique_ptr<Symbol> &sym
             throw Redeclared(symbolToInsert->getName());
         }
     }
-    return probingNum;
+    return position;
 }
 
 unsigned long SymbolTable::insert(const pam::ParsedINSERT *parsed) {
