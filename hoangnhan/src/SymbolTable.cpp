@@ -269,23 +269,27 @@ std::unique_ptr<ParsedInstruction> parseInstruction(const std::string &line) {
         throw GenericParsingException();
     }
 
-    const std::string_view insertWord = "INSERT";
-    if (std::equal(insertWord.begin(), insertWord.end(), line.begin(), firstSpace)) {
+    const char *INSERT_WORD = "INSERT";
+    static const auto INSERT_WORD_LEN = strlen(INSERT_WORD);
+    if (std::equal(INSERT_WORD, INSERT_WORD + INSERT_WORD_LEN, line.begin(), firstSpace)) {    // NOLINT
         return parseInsert(std::next(firstSpace), line.end());
     }
 
-    const std::string_view assignWord = "ASSIGN";
-    if (std::equal(assignWord.begin(), assignWord.end(), line.begin(), firstSpace)) {
+    const char *ASSIGN_WORD = "ASSIGN";
+    static const auto ASSIGN_WORD_LEN = strlen(ASSIGN_WORD);
+    if (std::equal(ASSIGN_WORD, ASSIGN_WORD + ASSIGN_WORD_LEN, line.begin(), firstSpace)) {    // NOLINT
         return parseAssign(std::next(firstSpace), line.end());
     }
 
-    const std::string_view callWord = "CALL";
-    if (std::equal(callWord.begin(), callWord.end(), line.begin(), firstSpace)) {
+    const char *CALL_WORD = "CALL";
+    static const auto CALL_WORD_LEN = strlen(CALL_WORD);
+    if (std::equal(CALL_WORD, CALL_WORD + CALL_WORD_LEN, line.begin(), firstSpace)) {    // NOLINT
         return parseCall(std::next(firstSpace), line.end());
     }
 
-    const std::string_view lookupWord = "LOOKUP";
-    if (std::equal(lookupWord.begin(), lookupWord.end(), line.begin(), firstSpace)) {
+    const char *LOOKUP_WORD = "LOOKUP";
+    static const auto LOOKUP_WORD_LEN = strlen(LOOKUP_WORD);
+    if (std::equal(LOOKUP_WORD, LOOKUP_WORD + LOOKUP_WORD_LEN, line.begin(), firstSpace)) {    // NOLINT
         return parseLookup(std::next(firstSpace), line.end());
     }
     throw GenericParsingException();
@@ -349,13 +353,15 @@ ParsedSetupLine parseSetupLine(const std::string &line) {
         throw GenericParsingException();
     }
 
-    const std::string_view LINEAR_WORD{ "LINEAR" };
-    if (std::equal(LINEAR_WORD.begin(), LINEAR_WORD.end(), line.begin(), firstSpace)) {
+    const char *LINEAR_WORD{ "LINEAR" };
+    static const auto LINEAR_WORD_LEN = strlen(LINEAR_WORD);
+    if (std::equal(LINEAR_WORD, LINEAR_WORD + LINEAR_WORD_LEN, line.begin(), firstSpace)) {    // NOLINT
         return { ProbingMethod::LINEAR, parseParamsLINEARorDOUBLE(std::next(firstSpace), line.end()) };
     }
 
-    const std::string_view QUADRATIC_WORD{ "QUADRATIC" };
-    if (std::equal(QUADRATIC_WORD.begin(), QUADRATIC_WORD.end(), line.begin(), firstSpace)) {
+    const char *QUADRATIC_WORD{ "QUADRATIC" };
+    static const auto QUADRATIC_WORD_LEN = strlen(QUADRATIC_WORD);
+    if (std::equal(QUADRATIC_WORD, QUADRATIC_WORD + QUADRATIC_WORD_LEN, line.begin(), firstSpace)) {    // NOLINT
         const size_t QUADRATIC_INS_MIN_LEN = 15;
         if (line.length() < QUADRATIC_INS_MIN_LEN) {
             throw GenericParsingException();
@@ -363,8 +369,9 @@ ParsedSetupLine parseSetupLine(const std::string &line) {
         return { ProbingMethod::QUADRARTIC, parseParamsQUADRATIC(std::next(firstSpace), line.end()) };
     }
 
-    const std::string_view DOUBLE_WORD{ "DOUBLE" };
-    if (std::equal(DOUBLE_WORD.begin(), DOUBLE_WORD.end(), line.begin(), firstSpace)) {
+    const char *DOUBLE_WORD{ "DOUBLE" };
+    static const auto DOUBLE_WORD_LEN = strlen(DOUBLE_WORD);
+    if (std::equal(DOUBLE_WORD, DOUBLE_WORD + DOUBLE_WORD_LEN, line.begin(), firstSpace)) {    // NOLINT
         return { ProbingMethod::DOUBLE, parseParamsLINEARorDOUBLE(std::next(firstSpace), line.end()) };
     }
     throw GenericParsingException();
@@ -534,7 +541,7 @@ std::unique_ptr<Symbol> SymbolTable::constructNewSymbol(const std::string &name,
     return std::make_unique<VariableSymbol>(name, currentLevel);
 }
 
-unsigned long SymbolTable::findInsertPosition(const std::unique_ptr<Symbol>& symbolToInsert, unsigned long &probingNum) {
+unsigned long SymbolTable::findInsertPosition(const std::unique_ptr<Symbol> &symbolToInsert, unsigned long &probingNum) {
     const auto firstHash = hashFunc(currentLevel, symbolToInsert->getName());
     const auto secondHash = doubleHashFunc(currentLevel, symbolToInsert->getName());
 
