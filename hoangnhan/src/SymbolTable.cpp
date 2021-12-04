@@ -739,18 +739,18 @@ unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {
 
     auto totalNumOfProbes = 0UL;
 
-    auto functionLookupResult = lookup(parsed->getFunctionName());    // NOTE: Unhandled Undeclared will be handle by caller
+    auto functionLookupResult = lookup(parsed->getFunctionName());
+
     auto *functionSymbol = functionLookupResult.ptr->getValue().get();
     if (functionSymbol->getSymbolType() != Symbol::SymbolType::FUNC) {
         throw sbtexcept::TypeMismatch();
     }
 
     auto *castedFuncSymbol = static_cast<FunctionSymbol *>(functionSymbol);    // NOLINT conversion is safe
-
     totalNumOfProbes += processFunctionCallParams(parsed->getParams(), castedFuncSymbol->getParams());
-
     compareTypeAndInferIfNeeded(Symbol::DataType::VOID, *castedFuncSymbol);
     totalNumOfProbes += functionLookupResult.numOfProbes;
+
     return totalNumOfProbes;
 }
 
@@ -780,18 +780,16 @@ SymbolTable::ParamType SymbolTable::fastParamTypeDeduce(const std::string &param
 
 unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
     const auto &assignee = parsed->getName();
-    auto totalEntry = 0UL;
 
     switch (parsed->getValueType()) {
     case pam::AssignType::LITERAL_NUMBER:
-        totalEntry += assignWithVarWithType(assignee, Symbol::DataType::NUMBER);
-        break;
+        return assignWithVarWithType(assignee, Symbol::DataType::NUMBER);
 
     case pam::AssignType::LITERAL_STRING:
-        totalEntry += assignWithVarWithType(assignee, Symbol::DataType::STRING);
-        break;
+        return assignWithVarWithType(assignee, Symbol::DataType::STRING);
 
     case pam::AssignType::IDENTIFIER: {
+
         auto assignerLookupRes = lookup(parsed->getValueName());
         auto *assignerSymbol = assignerLookupRes.ptr->getValue().get();
         if (assignerSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
@@ -805,9 +803,8 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
         }
         compareTypeAndInferIfNeeded(*assigneeSymbol, *assignerSymbol);
 
-        totalEntry += assigneeLookupRes.numOfProbes;
-        totalEntry += assignerLookupRes.numOfProbes;
-        break;
+        auto totalNumberOfProbes = assigneeLookupRes.numOfProbes + assignerLookupRes.numOfProbes;
+        return totalNumberOfProbes;
     }
     case pam::AssignType::FUNC_CALL: {
         auto functionSymbolLookupRes = lookup(parsed->getValueName());
@@ -818,7 +815,7 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
 
         auto *actualFunctionSymbol = static_cast<FunctionSymbol *>(functionSymbol);    // NOLINT conversion is safe
 
-        totalEntry += processFunctionCallParams(parsed->getParams(), actualFunctionSymbol->getParams());
+        auto totalNumberOfProbes = processFunctionCallParams(parsed->getParams(), actualFunctionSymbol->getParams());
 
         auto assigneeLookupRes = lookup(assignee);
         auto *assigneeSymbol = assigneeLookupRes.ptr->getValue().get();
@@ -833,11 +830,11 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
 
         compareTypeAndInferIfNeeded(*assigneeSymbol, *actualFunctionSymbol);
 
-        totalEntry += functionSymbolLookupRes.numOfProbes;
-        totalEntry += assigneeLookupRes.numOfProbes;
+        totalNumberOfProbes += functionSymbolLookupRes.numOfProbes;
+        totalNumberOfProbes += assigneeLookupRes.numOfProbes;
+        return totalNumberOfProbes;
     }
     }
-    return totalEntry;
 }
 
 void SymbolTable::processLine(const std::string &line) {
@@ -852,9 +849,9 @@ void SymbolTable::processLine(const std::string &line) {
     case pam::InstructionType::INSERT: {
         auto *parsedInsert = static_cast<pam::ParsedINSERT *>(parsed.get());    // NOLINT
         try {
-            unsigned long res = insert(parsedInsert);    // NOTE: This throw Redeclared, InvalidDeclaration or GenericOverflowException
+            unsigned long res = insert(parsedInsert);
             std::cout << res << '\n';
-        } catch (sbtexcept::GenericOverflowException &e) {    // NOTE: Redeclared and InvalidDeclaration will be handle by caller
+        } catch (sbtexcept::GenericOverflowException &e) {
             throw Overflow(line);
         }
         return;
@@ -892,7 +889,7 @@ void SymbolTable::processLine(const std::string &line) {
     }
     case pam::InstructionType::LOOKUP: {
         auto *parsedLookup = static_cast<pam::ParsedLOOKUP *>(parsed.get());    // NOLINT
-        auto res = lookup(parsedLookup);                                        // NOTE: Undeclared will be handled by caller
+        auto res = lookup(parsedLookup);
         std::cout << res.index << '\n';
         return;
     }
