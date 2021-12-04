@@ -378,6 +378,9 @@ class SymbolTable {
     unsigned long findInsertPosition(const std::unique_ptr<Symbol>& symbolToInsert, unsigned long &probingNum);
     unsigned long insert(const pam::ParsedINSERT *parsed);
 
+    unsigned long processFunctionCallParams(const FixedSizeVec<std::string> &params, FixedSizeVec<Symbol::DataType> &functionParamType);
+
+
     unsigned long call(const pam::ParsedCALL *parsed);
  
     unsigned long assignWithVarWithType(const std::string &name, Symbol::DataType targetType);

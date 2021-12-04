@@ -691,6 +691,40 @@ void SymbolTable::compareTypeAndInferIfNeeded(Symbol &unknownSymbol1, Symbol &un
     }
 }
 
+unsigned long SymbolTable::processFunctionCallParams(const FixedSizeVec<std::string> &params, FixedSizeVec<Symbol::DataType> &functionParamType) {
+    if (params.size() != functionParamType.size()) {
+        throw sbtexcept::TypeMismatch();
+    }
+
+    auto probingNum = 0UL;
+    for (auto i = 0U; i < params.size(); i++) {
+        const auto &param = params[i];
+
+        switch (fastParamTypeDeduce(param)) {
+        case ParamType::STRING:
+            compareTypeAndInferIfNeeded(Symbol::DataType::NUMBER, functionParamType[i]);
+            break;
+
+        case ParamType::NUMBER:
+            compareTypeAndInferIfNeeded(Symbol::DataType::STRING, functionParamType[i]);
+            break;
+
+        case ParamType::IDENTIFIER:
+            auto lookupRes = lookup(param);    // NOTE: Unhandled Undeclared will be handle by caller
+            auto *symbol = lookupRes.ptr->getValue().get();
+
+            if (symbol->getSymbolType() == Symbol::SymbolType::FUNC) {
+                throw sbtexcept::TypeMismatch();
+            }
+            auto *varSymbol = static_cast<VariableSymbol *>(symbol);    // NOLINT conversion is safe here
+            static_cast<void (&)(Symbol::DataType &, Symbol &)>(compareTypeAndInferIfNeeded)(functionParamType[i], *varSymbol);
+
+            probingNum += lookupRes.numOfProbes;
+        }
+    }
+    return probingNum;
+}
+
 unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {
     if (container.empty()) {
         throw Undeclared(parsed->getFunctionName());
@@ -705,34 +739,8 @@ unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {
     }
 
     auto *castedFuncSymbol = static_cast<FunctionSymbol *>(functionSymbol);    // NOLINT conversion is safe
-    if (parsed->getParams().size() != castedFuncSymbol->getParams().size()) {
-        throw sbtexcept::TypeMismatch();
-    }
 
-    for (auto i = 0U; i < parsed->getParams().size(); i++) {
-        const auto &param = parsed->getParams()[i];
-
-        switch (fastParamTypeDeduce(param)) {
-        case ParamType::STRING:
-            compareTypeAndInferIfNeeded(Symbol::DataType::NUMBER, castedFuncSymbol->getParams()[i]);
-            break;
-        case ParamType::NUMBER:
-            compareTypeAndInferIfNeeded(Symbol::DataType::STRING, castedFuncSymbol->getParams()[i]);
-            break;
-        case ParamType::IDENTIFIER:
-            auto lookupRes = lookup(param);    // NOTE: Unhandled Undeclared will be handle by caller
-            auto *symbol = lookupRes.ptr->getValue().get();
-
-            if (symbol->getSymbolType() == Symbol::SymbolType::FUNC) {
-                throw sbtexcept::TypeMismatch();
-            }
-            auto *varSymbol = static_cast<VariableSymbol *>(symbol);    // NOLINT conversion is safe here
-
-            static_cast<void (&)(Symbol::DataType &, Symbol &)>(compareTypeAndInferIfNeeded)(castedFuncSymbol->getParams()[i], *varSymbol);
-
-            totalNumOfProbes += lookupRes.numOfProbes;
-        }
-    }
+    totalNumOfProbes += processFunctionCallParams(parsed->getParams(), castedFuncSymbol->getParams());
 
     compareTypeAndInferIfNeeded(Symbol::DataType::VOID, *castedFuncSymbol);
     totalNumOfProbes += functionLookupResult.numOfProbes;
@@ -802,34 +810,8 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
         }
 
         auto *actualFunctionSymbol = static_cast<FunctionSymbol *>(functionSymbol);    // NOLINT conversion is safe
-        if (actualFunctionSymbol->getParams().size() != parsed->getParams().size()) {
-            throw sbtexcept::TypeMismatch();
-        }
 
-        for (auto i = 0UL; i < actualFunctionSymbol->getParams().size(); i++) {
-            const auto &param = parsed->getParams()[i];
-
-            switch (fastParamTypeDeduce(param)) {
-            case ParamType::NUMBER:
-                compareTypeAndInferIfNeeded(Symbol::DataType::NUMBER, actualFunctionSymbol->getParams()[i]);
-                break;
-
-            case ParamType::STRING:
-                compareTypeAndInferIfNeeded(Symbol::DataType::STRING, actualFunctionSymbol->getParams()[i]);
-                break;
-            case ParamType::IDENTIFIER:
-                auto lookupRes = lookup(param);    // NOTE: Unhandled Undeclared will be handle by caller
-                auto *symbol = lookupRes.ptr->getValue().get();
-
-                if (symbol->getSymbolType() == Symbol::SymbolType::FUNC) {
-                    throw sbtexcept::TypeMismatch();
-                }
-                auto *varSymbol = static_cast<VariableSymbol *>(symbol);    // NOLINT conversion is safe here
-                static_cast<void (&)(Symbol::DataType &, Symbol &)>(compareTypeAndInferIfNeeded)(actualFunctionSymbol->getParams()[i], *varSymbol);
-
-                totalEntry += lookupRes.numOfProbes;
-            }
-        }
+        totalEntry += processFunctionCallParams(parsed->getParams(), actualFunctionSymbol->getParams());
 
         auto assigneeLookupRes = lookup(assignee);
         auto *assigneeSymbol = assigneeLookupRes.ptr->getValue().get();
