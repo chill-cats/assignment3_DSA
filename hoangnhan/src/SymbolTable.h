@@ -313,9 +313,6 @@ private:
     // NOTE: This is data type of Variable symbol and Function symbol's return type
     DataType m_dataType = DataType::UN_INFERRED;    // data type is always uninferred when insert
 
-    mutable bool isKeyCalculated = false;
-    mutable std::string key;
-
 public:
     Symbol(std::string &&name, unsigned long level, SymbolType symbolType);    // PERF: Allow construction of generic symbol use in LOOKUP
 
@@ -324,8 +321,6 @@ public:
     DataType getDataType() const noexcept;
     SymbolType getSymbolType() const noexcept;
     void setDataType(DataType type) noexcept;
-
-    std::string toKey() const;
 
     virtual ~Symbol() = default;
 };
@@ -370,7 +365,7 @@ class SymbolTable {
     unsigned long hashFunc(unsigned long level, const std::string &name);
 
     std::function<unsigned long(unsigned long level, const std::string &name)> doubleHashFunc;
-    std::function<unsigned long(unsigned int iter, unsigned long firstHash, unsigned long secondHash)> getIndex;
+    std::function<unsigned long(unsigned long iter, unsigned long firstHash, unsigned long secondHash)> getIndex;
 
     FixedSizeVec<HashEntry> container;
 
@@ -379,7 +374,10 @@ class SymbolTable {
     void setupHashTable(const std::string &setupLine);
     void processLine(const std::string &line);
 
+    std::unique_ptr<Symbol> constructNewSymbol(const std::string &name, bool isFunc, unsigned long paramNum);
+    unsigned long findInsertPosition(const std::unique_ptr<Symbol>& symbolToInsert, unsigned long &probingNum);
     unsigned long insert(const pam::ParsedINSERT *parsed);
+
     unsigned long call(const pam::ParsedCALL *parsed);
  
     unsigned long assignWithVarWithType(const std::string &name, Symbol::DataType targetType);

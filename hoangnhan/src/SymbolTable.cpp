@@ -186,7 +186,9 @@ ParsedFunctionCall parseFunctionCall(StrCIter begin, StrCIter end) {
     auto currentEnd = startOfArgs;
     for (; currentEnd != closingParan; ++currentEnd) {
         if (*currentEnd == ',') {
-            if (!isValidLiteralNumber(startOfArgs, currentEnd) && !isValidLiteralString(startOfArgs, currentEnd) && !isValidIdentifierName(startOfArgs, currentEnd)) {
+            if (!isValidLiteralNumber(startOfArgs, currentEnd)
+                && !isValidLiteralString(startOfArgs, currentEnd)
+                && !isValidIdentifierName(startOfArgs, currentEnd)) {
                 throw GenericParsingException();
             }
             params[currentIndex++] = std::string{ startOfArgs, currentEnd };
@@ -393,36 +395,6 @@ void Symbol::setDataType(DataType type) noexcept {
     m_dataType = type;
 }
 
-std::string Symbol::toKey() const {
-    if (isKeyCalculated) {
-        return key;
-    }
-    std::string newKey = std::to_string(m_level);
-    for (char c : m_name) {
-        if (c >= ':') {
-            newKey += static_cast<char>(((c - 48) / 10) + '0');    // NOLINT
-            newKey += static_cast<char>(((c - 48) % 10) + '0');    // NOLINT
-        } else {
-            newKey += static_cast<char>((c - 48) + '0');    // NOLINT
-        }
-    }
-    key = std::move(newKey);
-    return key;
-}
-
-std::string toKey(unsigned long level, const std::string &name) {
-    std::string newKey = std::to_string(level);
-    for (char c : name) {
-        if (c >= ':') {
-            newKey += static_cast<char>(((c - 48) / 10) + '0');    // NOLINT
-            newKey += static_cast<char>(((c - 48) % 10) + '0');    // NOLINT
-        } else {
-            newKey += static_cast<char>((c - 48) + '0');    // NOLINT
-        }
-    }
-    return newKey;
-}
-
 FunctionSymbol::FunctionSymbol(std::string name,
     unsigned long level,    // NOLINT
     unsigned long paramsNum) : Symbol(std::move(name), level, SymbolType::FUNC),
@@ -494,43 +466,6 @@ unsigned long SymbolTable::hashFunc(unsigned long level, const std::string &name
     return hash;
 }
 
-/*
-unsigned long SymbolTable::doubleHashFunc(const Symbol *symbol) {
-    auto size = container.size() - 2;
-    auto hash = symbol->getLevel();
-
-    for (auto a : symbol->getName()) {
-        unsigned long c = static_cast<unsigned long>(a - '0');    // NOLINT
-        hash %= size;
-
-        hash *= a > 10 ? 100 : 10;    // NOLINT
-
-        hash %= size;
-        c %= size;
-        hash += c;
-        hash %= size;
-    }
-    return hash + 1;
-}
-
-unsigned long SymbolTable::doubleHashFunc(unsigned long level, const std::string &name) {
-    auto size = container.size() - 2;
-    auto hash = level;
-
-    for (auto a : name) {
-        unsigned long c = static_cast<unsigned long>(a - '0');    // NOLINT
-        hash %= size;
-
-        hash *= a > 10 ? 100 : 10;    // NOLINT
-
-        hash %= size;
-        c %= size;
-        hash += c;
-        hash %= size;
-    }
-    return hash + 1;
-}
-*/
 void SymbolTable::setupHashTable(const std::string &setupLine) {
     auto res = pam::parseSetupLine(setupLine);
     container = FixedSizeVec<HashEntry>(res.params[0]);
@@ -538,22 +473,18 @@ void SymbolTable::setupHashTable(const std::string &setupLine) {
     switch (res.method) {
     case pam::ProbingMethod::LINEAR: {
         auto c = res.params[1];
-        getIndex = [this, c](unsigned int iter, unsigned long firstHash, unsigned long) -> unsigned long {    // NOLINT
+        getIndex = [this, c](unsigned long iter, unsigned long firstHash, unsigned long) -> unsigned long {    // NOLINT
             return (firstHash + (c * iter) % container.size()) % container.size();
         };
 
         doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {    // NOLINT
             return std::numeric_limits<unsigned long>::max();
         };
-
-#ifdef DEBUG
-        std::clog << "Setup hash table with LINEAR probing, size: " << res.params[0] << " and c: " << res.params[1] << '\n';
-#endif
         break;
     }
     case pam::ProbingMethod::DOUBLE: {
         auto c = res.params[1];
-        getIndex = [this, c](unsigned int iter, unsigned long firstHash, unsigned long secondHash) -> unsigned long {
+        getIndex = [this, c](unsigned long iter, unsigned long firstHash, unsigned long secondHash) -> unsigned long {
             return (firstHash
                        + ((c * iter * secondHash) % container.size()))
                    % container.size();
@@ -575,15 +506,12 @@ void SymbolTable::setupHashTable(const std::string &setupLine) {
             }
             return hash + 1;
         };
-#ifdef DEBUG
-        std::clog << "Setup hash table with DOUBLE probing, size: " << res.params[0] << " and c: " << res.params[1] << '\n';
-#endif
         break;
     }
     case pam::ProbingMethod::QUADRARTIC:
         auto c1 = res.params[1];
         auto c2 = res.params[2];
-        getIndex = [this, c1, c2](unsigned int iter, unsigned long firstHash, unsigned long) -> unsigned long {    // NOLINT
+        getIndex = [this, c1, c2](unsigned long iter, unsigned long firstHash, unsigned long) -> unsigned long {    // NOLINT
             return (firstHash
                        + (c1 * iter) % container.size()
                        + (c2 * iter * iter) % container.size())
@@ -592,64 +520,54 @@ void SymbolTable::setupHashTable(const std::string &setupLine) {
         doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {
             return std::numeric_limits<unsigned long>::max();
         };
-#ifdef DEBUG
-        std::clog << "Setup hash table with QUADRATIC probing, size: " << res.params[0] << ", c1: " << res.params[1] << " and c2: " << res.params[2] << '\n';
-#endif
         break;
     }
+}
+
+std::unique_ptr<Symbol> SymbolTable::constructNewSymbol(const std::string &name, bool isFunc, unsigned long paramNum) {
+    if (isFunc) {
+        if (currentLevel != 0) {
+            return std::make_unique<FunctionSymbol>(name, currentLevel, paramNum);
+        }
+        throw InvalidDeclaration(name);
+    }
+    return std::make_unique<VariableSymbol>(name, currentLevel);
+}
+
+unsigned long SymbolTable::findInsertPosition(const std::unique_ptr<Symbol>& symbolToInsert, unsigned long &probingNum) {
+    const auto firstHash = hashFunc(currentLevel, symbolToInsert->getName());
+    const auto secondHash = doubleHashFunc(currentLevel, symbolToInsert->getName());
+
+    auto position = getIndex(probingNum, firstHash, secondHash);
+
+    for (; !container[position].isTombStone() && container[position].getValue();
+         position = getIndex(++probingNum, firstHash, secondHash)) {
+
+        if (probingNum > container.size()) {
+            throw sbtexcept::GenericOverflowException();
+        }
+
+        if (container[position].getValue()->getName() == symbolToInsert->getName()
+            && container[position].getValue()->getLevel() == symbolToInsert->getLevel()) {
+            throw Redeclared(symbolToInsert->getName());
+        }
+    }
+    return probingNum;
 }
 
 unsigned long SymbolTable::insert(const pam::ParsedINSERT *parsed) {
     if (container.empty()) {
         throw sbtexcept::GenericOverflowException();
     }
+    std::unique_ptr<Symbol> newSymbol = constructNewSymbol(parsed->getName(), parsed->isFunc(), parsed->getParamCount());
 
-    std::unique_ptr<Symbol> newSymbol;
-    if (parsed->isFunc()) {
-        if (currentLevel == 0) {
-            newSymbol = std::make_unique<FunctionSymbol>(parsed->getName(), currentLevel, parsed->getParamCount());
-        } else {
-            throw InvalidDeclaration(parsed->getName());
-        }
-    } else {
-        newSymbol = std::make_unique<VariableSymbol>(parsed->getName(), currentLevel);
-    }
+    auto probingNum = 0UL;
 
-#ifdef DEBUG
-    std::clog << "Trying to insert with name: \"" << parsed->getName() << "\", is Func: " << parsed->isFunc() << '\n';
-#endif
-
-    auto probingIter = 0U;
-
-    const auto firstHash = hashFunc(currentLevel, newSymbol->getName());
-    const auto secondHash = doubleHashFunc(currentLevel, newSymbol->getName());
-
-#ifdef DEBUG
-    std::clog << "firstHash: " << firstHash << ", secondHash: " << secondHash << '\n';
-#endif
-
-    const auto initialPosition = getIndex(probingIter, firstHash, secondHash);
-    auto position = initialPosition;
-
-    for (; !container[position].isTombStone() && container[position].getValue();
-         position = getIndex(++probingIter, firstHash, secondHash)) {
-#ifdef DEBUG
-        std::clog << "Trying to insert to position: " << position << '\n';
-#endif
-        if (/*(probingIter != 0 && position == initialPosition) || */ probingIter > container.size()) {
-            throw sbtexcept::GenericOverflowException();
-        }
-
-        if (container[position].getValue()->toKey() == newSymbol->toKey()) {
-            throw Redeclared(parsed->getName());
-        }
-    }
-#ifdef DEBUG
-    std::clog << "Inserting to position: " << position << '\n';
-#endif
+    auto position = findInsertPosition(newSymbol, probingNum);
     container[position].setValue(std::move(newSymbol));
     container[position].unsetTombStone();
-    return probingIter;
+
+    return probingNum;
 }
 
 void SymbolTable::begin() noexcept {
@@ -780,8 +698,8 @@ unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {
 
     auto totalNumOfProbes = 0UL;
 
-    auto functionLookupRes = lookup(parsed->getFunctionName());    // NOTE: Unhandled Undeclared will be handle by caller
-    auto *functionSymbol = functionLookupRes.ptr->getValue().get();
+    auto functionLookupResult = lookup(parsed->getFunctionName());    // NOTE: Unhandled Undeclared will be handle by caller
+    auto *functionSymbol = functionLookupResult.ptr->getValue().get();
     if (functionSymbol->getSymbolType() != Symbol::SymbolType::FUNC) {
         throw sbtexcept::TypeMismatch();
     }
@@ -794,13 +712,14 @@ unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {
     for (auto i = 0U; i < parsed->getParams().size(); i++) {
         const auto &param = parsed->getParams()[i];
 
-        if ('0' <= *param.begin() && *param.begin() <= '9') {    // number
+        switch (fastParamTypeDeduce(param)) {
+        case ParamType::STRING:
             compareTypeAndInferIfNeeded(Symbol::DataType::NUMBER, castedFuncSymbol->getParams()[i]);
-
-        } else if (*param.begin() == '\'') {    // string
+            break;
+        case ParamType::NUMBER:
             compareTypeAndInferIfNeeded(Symbol::DataType::STRING, castedFuncSymbol->getParams()[i]);
-
-        } else {                               // name
+            break;
+        case ParamType::IDENTIFIER:
             auto lookupRes = lookup(param);    // NOTE: Unhandled Undeclared will be handle by caller
             auto *symbol = lookupRes.ptr->getValue().get();
 
@@ -814,8 +733,9 @@ unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {
             totalNumOfProbes += lookupRes.numOfProbes;
         }
     }
+
     compareTypeAndInferIfNeeded(Symbol::DataType::VOID, *castedFuncSymbol);
-    totalNumOfProbes += functionLookupRes.numOfProbes;
+    totalNumOfProbes += functionLookupResult.numOfProbes;
     return totalNumOfProbes;
 }
 
