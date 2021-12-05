@@ -602,17 +602,16 @@ void SymbolTable::print() {
     if (container.empty()) {
         return;
     }
-    auto entryIndex = 0;
     auto firstEntry = true;
-    for (const auto &entry : container) {
-        if (entry.getValue() && !entry.isTombStone()) {
+    for (auto i = 0UL; i < container.size(); i++) {
+        if (container[i].getValue() && !container[i].isTombStone()) {
             std::cout
                 << (firstEntry ? "" : ";")
-                << ++entryIndex
+                << i
                 << ' '
-                << entry.getValue()->getName()
+                << container[i].getValue()->getName()
                 << "//"
-                << entry.getValue()->getLevel();
+                << container[i].getValue()->getLevel();
             firstEntry = false;
         }
     }
