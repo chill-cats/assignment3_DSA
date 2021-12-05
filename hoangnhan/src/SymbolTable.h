@@ -278,6 +278,7 @@ struct ParsedFunctionCall {
 
 class GenericParsingException : std::exception {};
 
+/*
 unsigned long strtoul(StrCIter begin, StrCIter end);
 
 std::unique_ptr<ParsedInstruction> parseAssign(StrCIter begin, StrCIter end);
@@ -290,7 +291,7 @@ FixedSizeVec<unsigned long> parseParamsLINEARorDOUBLE(StrCIter begin, StrCIter e
 FixedSizeVec<unsigned long> parseParamsQUADRATIC(StrCIter begin, StrCIter end);
 
 ParsedSetupLine parseSetupLine(const std::string &line);
-
+*/
 }    // namespace pam
 class Symbol {
 public:
@@ -375,16 +376,16 @@ class SymbolTable {
     void processLine(const std::string &line);
 
     std::unique_ptr<Symbol> constructNewSymbol(const std::string &name, bool isFunc, unsigned long paramNum);
-    unsigned long findInsertPosition(const std::unique_ptr<Symbol>& symbolToInsert, unsigned long &probingNum);
+    unsigned long findInsertPosition(const std::unique_ptr<Symbol> &symbolToInsert, unsigned long &probingNum);
     unsigned long insert(const pam::ParsedINSERT *parsed);
 
     unsigned long processFunctionCallParams(const FixedSizeVec<std::string> &params, FixedSizeVec<Symbol::DataType> &functionParamType);
 
     unsigned long call(const pam::ParsedCALL *parsed);
- 
+
     unsigned long assignWithVarWithType(const std::string &name, Symbol::DataType targetType);
     unsigned long assign(const pam::ParsedASSIGN *parsed);
-    
+
     void print();
     void detectUnclosedBlock() const;
     void begin() noexcept;
@@ -402,7 +403,7 @@ class SymbolTable {
     static void compareTypeAndInferIfNeeded(Symbol::DataType targetType, Symbol &unknownSymbol);
     static void compareTypeAndInferIfNeeded(Symbol &unknownSymbol1, Symbol &unknownSymbol2);
     static void compareTypeAndInferIfNeeded(Symbol::DataType &unknownType, Symbol &unknownSymbol);
-    
+
     enum class ParamType {
         STRING,
         NUMBER,
@@ -411,7 +412,8 @@ class SymbolTable {
 
     static ParamType fastParamTypeDeduce(const std::string &param);
 
-    Symbol* lookupSymbolWithSymbolType(const std::string &nameOfSymbol, Symbol::SymbolType expectedSymbolType);
+    Symbol *lookupSymbolWithSymbolType(const std::string &nameOfSymbol, Symbol::SymbolType expectedSymbolType);
+
 public:
     void run(const string &filename);
 };

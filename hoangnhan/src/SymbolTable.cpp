@@ -2,6 +2,23 @@
 
 namespace pam {    // parse and match
 
+static const size_t RESERVED_WORDS_NUM = 3;
+static const char *const RESERVED_WORDS[RESERVED_WORDS_NUM] = {
+    "string",
+    "number",
+    "void"
+};
+
+
+bool isReservedWord(const std::string &name) {
+    for (auto i = 0UL; i < RESERVED_WORDS_NUM; i++) {    // NOLINT
+        if (name == RESERVED_WORDS[i]) {                 // NOLINT
+            return false;
+        }
+    }
+    return true;
+}
+
 ParsedInstruction::ParsedInstruction(InstructionType type) : m_type(type) {}
 InstructionType ParsedInstruction::getType() const noexcept {
     return m_type;
@@ -135,6 +152,10 @@ bool isValidIdentifierName(StrCIter begin, StrCIter end) noexcept {
         })) {
         return false;
     }
+
+    if (isReservedWord({ begin, end })) {
+        return false;
+    }
     return true;
 }
 
@@ -145,7 +166,6 @@ std::unique_ptr<ParsedInstruction> parseInsert(StrCIter begin, StrCIter end) {
     auto sep = std::find(begin, end, ' ');
 
     const std::string name{ begin, sep };
-    // INFO: Name must start with lowercase letter and only contain lowrcase letter, upper case letter, digit and underscore
     if (!isValidIdentifierName(name.begin(), name.end())) {
         throw GenericParsingException();
     }
@@ -825,7 +845,9 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
         auto *actualFunctionSymbol = static_cast<FunctionSymbol *>(functionSymbol);    // NOLINT conversion is safe
 
         auto totalNumberOfProbes = processFunctionCallParams(parsed->getParams(), actualFunctionSymbol->getParams());
-
+        if (actualFunctionSymbol->getDataType() == Symbol::DataType::VOID) {
+            throw sbtexcept::TypeMismatch();
+        }
         auto assigneeLookupRes = lookup(assignee);
         auto *assigneeSymbol = assigneeLookupRes.ptr->getValue().get();
 
@@ -833,7 +855,7 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
             throw sbtexcept::TypeMismatch();
         }
 
-        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED && actualFunctionSymbol->getDataType() == Symbol::DataType::VOID) {
+        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
             throw sbtexcept::TypeMismatch();
         }
 
