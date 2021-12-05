@@ -4,14 +4,18 @@ using namespace std;
 
 void test(const string &filename) {
     auto *st = new SymbolTable();
+#ifdef DEBUG
     auto start = std::chrono::high_resolution_clock::now();
+#endif
     try {
         st->run(filename);
     } catch (exception &e) {
         cout << e.what();
     }
     delete st;
+#ifdef DEBUG
     auto end = std::chrono::high_resolution_clock::now();
+#endif
     std::cout.flush();
 #ifdef DEBUG
     std::clog << "\n============\nTime: ";

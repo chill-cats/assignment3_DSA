@@ -380,7 +380,6 @@ class SymbolTable {
 
     unsigned long processFunctionCallParams(const FixedSizeVec<std::string> &params, FixedSizeVec<Symbol::DataType> &functionParamType);
 
-
     unsigned long call(const pam::ParsedCALL *parsed);
  
     unsigned long assignWithVarWithType(const std::string &name, Symbol::DataType targetType);
@@ -411,6 +410,8 @@ class SymbolTable {
     };
 
     static ParamType fastParamTypeDeduce(const std::string &param);
+
+    Symbol* lookupSymbolWithSymbolType(const std::string &nameOfSymbol, Symbol::SymbolType expectedSymbolType);
 public:
     void run(const string &filename);
 };

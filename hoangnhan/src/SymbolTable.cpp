@@ -568,13 +568,13 @@ unsigned long SymbolTable::insert(const pam::ParsedINSERT *parsed) {
     }
     std::unique_ptr<Symbol> newSymbol = constructNewSymbol(parsed->getName(), parsed->isFunc(), parsed->getParamCount());
 
-    auto probingNum = 0UL;
+    auto totalNumberOfProbing = 0UL;
 
-    auto position = findInsertPosition(newSymbol, probingNum);
+    auto position = findInsertPosition(newSymbol, totalNumberOfProbing);
     container[position].setValue(std::move(newSymbol));
     container[position].unsetTombStone();
 
-    return probingNum;
+    return totalNumberOfProbing;
 }
 
 void SymbolTable::begin() noexcept {
@@ -603,20 +603,20 @@ void SymbolTable::print() {
         return;
     }
     auto entryIndex = 0;
-    bool firstEntry = true;
+    auto firstEntry = true;
     for (const auto &entry : container) {
         if (entry.getValue() && !entry.isTombStone()) {
             std::cout
                 << (firstEntry ? "" : ";")
-                << entryIndex
+                << ++entryIndex
                 << ' '
                 << entry.getValue()->getName()
                 << "//"
                 << entry.getValue()->getLevel();
             firstEntry = false;
         }
-        ++entryIndex;
     }
+
     if (!firstEntry) {
         std::cout << '\n';
     }
@@ -635,20 +635,30 @@ SymbolTable::LookupResult SymbolTable::lookup(const std::string &name) {
         auto firstHash = hashFunc(static_cast<unsigned long>(level), name);
         auto secondHash = doubleHashFunc(static_cast<unsigned long>(level), name);
 
-        auto iter = 0U;
-        auto initialPosition = getIndex(iter, firstHash, secondHash);
-        for (auto position = initialPosition;; position = getIndex(++iter, firstHash, secondHash)) {
-            if (container[position].getValue() == nullptr || iter >= container.size()) {
+        auto probingIteration = 0U;
+        auto initialPosition = getIndex(probingIteration, firstHash, secondHash);
+        for (auto position = initialPosition;; position = getIndex(++probingIteration, firstHash, secondHash)) {
+            if (container[position].getValue() == nullptr || probingIteration >= container.size()) {
                 break;
             }
             if (!container[position].isTombStone()    // we not encounter deleted item
                 && container[position].getValue()->getLevel() == static_cast<unsigned long>(level)
                 && container[position].getValue()->getName() == name) {    // name is matching
-                return { position, &container[position], iter };
+                return { position, &container[position], probingIteration };
             }
         }
     }
     throw Undeclared(name);
+}
+
+Symbol *SymbolTable::lookupSymbolWithSymbolType(const std::string &nameOfSymbol, Symbol::SymbolType expectedSymbolType) {
+    auto lookupRes = lookup(nameOfSymbol);
+    auto *symbol = lookupRes.ptr->getValue().get();
+
+    if (symbol->getSymbolType() == expectedSymbolType) {
+        throw sbtexcept::TypeMismatch();
+    }
+    return symbol;
 }
 
 void SymbolTable::compareTypeAndInferIfNeeded(Symbol::DataType targetType, Symbol::DataType &unknownType) {
@@ -703,7 +713,7 @@ unsigned long SymbolTable::processFunctionCallParams(const FixedSizeVec<std::str
         throw sbtexcept::TypeMismatch();
     }
 
-    auto probingNum = 0UL;
+    auto totalNumberOfProbing = 0UL;
     for (auto i = 0U; i < params.size(); i++) {
         const auto &param = params[i];
 
@@ -726,10 +736,10 @@ unsigned long SymbolTable::processFunctionCallParams(const FixedSizeVec<std::str
             auto *varSymbol = static_cast<VariableSymbol *>(symbol);    // NOLINT conversion is safe here
             static_cast<void (&)(Symbol::DataType &, Symbol &)>(compareTypeAndInferIfNeeded)(functionParamType[i], *varSymbol);
 
-            probingNum += lookupRes.numOfProbes;
+            totalNumberOfProbing += lookupRes.numOfProbes;
         }
     }
-    return probingNum;
+    return totalNumberOfProbing;
 }
 
 unsigned long SymbolTable::call(const pam::ParsedCALL *parsed) {
@@ -835,6 +845,7 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
         return totalNumberOfProbes;
     }
     }
+    throw std::logic_error("Cannot reach here!");
 }
 
 void SymbolTable::processLine(const std::string &line) {
