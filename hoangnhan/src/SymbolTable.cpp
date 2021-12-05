@@ -485,7 +485,7 @@ void SymbolTable::setupHashTable(const std::string &setupLine) {
         };
 
         doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {    // NOLINT
-            return std::numeric_limits<unsigned long>::max();
+            return 0;
         };
         break;
     }
@@ -525,7 +525,7 @@ void SymbolTable::setupHashTable(const std::string &setupLine) {
                    % container.size();
         };
         doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {
-            return std::numeric_limits<unsigned long>::max();
+            return 0;
         };
         break;
     }
