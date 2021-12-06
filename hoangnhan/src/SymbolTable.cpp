@@ -13,10 +13,10 @@ static const char *const RESERVED_WORDS[RESERVED_WORDS_NUM] = {
 bool isReservedWord(const std::string &name) {
     for (auto i = 0UL; i < RESERVED_WORDS_NUM; i++) {    // NOLINT
         if (name == RESERVED_WORDS[i]) {                 // NOLINT
-            return false;
+            return true;
         }
     }
-    return true;
+    return false;
 }
 
 ParsedInstruction::ParsedInstruction(InstructionType type) : m_type(type) {}
@@ -115,29 +115,28 @@ unsigned long strtoul(StrCIter begin, StrCIter end) {
         throw std::logic_error("Cannot reach here");
     }
     return result;
-    // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 }
 
 bool isValidLiteralString(StrCIter begin, StrCIter end) noexcept {
     if (end - begin < 2 || *begin != '\'' || *std::prev(end) != '\'') {
         return false;
     }
-    if (!std::all_of(std::next(begin), std::prev(end), [](char c) {
-            return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('0' <= c && c <= '9') || c == ' ';
-        })) {
-        return false;
-    }
-    return true;
+    auto isCharacterValid = [](char c) {
+        return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('0' <= c && c <= '9') || c == ' ';
+    };
+
+    return std::all_of(std::next(begin), std::prev(end), isCharacterValid);
 }
 
 bool isValidLiteralNumber(StrCIter begin, StrCIter end) noexcept {
     if (end == begin) {
         return false;
     }
-    if (!std::all_of(begin, end, [](char c) { return '0' <= c && c <= '9'; })) {
-        return false;
-    }
-    return true;
+    auto isCharacterValid = [](char c) {
+        return '0' <= c && c <= '9';
+    };
+
+    return std::all_of(begin, end, isCharacterValid);
 }
 
 bool isValidIdentifierName(StrCIter begin, StrCIter end) noexcept {
@@ -147,16 +146,11 @@ bool isValidIdentifierName(StrCIter begin, StrCIter end) noexcept {
     if (*begin < 'a' || 'z' < *begin) {
         return false;
     }
-    if (std::any_of(begin, end, [](char c) {
-            return (c < 'a' || 'z' < c) && (c < 'A' || 'Z' < c) && (c < '0' || '9' < c) && c != '_';
-        })) {
-        return false;
-    }
+    auto isCharacterInvalid = [](char c) {
+        return (c < 'a' || 'z' < c) && (c < 'A' || 'Z' < c) && (c < '0' || '9' < c) && c != '_';
+    };
 
-    if (isReservedWord({ begin, end })) {
-        return false;
-    }
-    return true;
+    return !(std::any_of(begin, end, isCharacterInvalid) || isReservedWord({ begin, end }));
 }
 
 std::unique_ptr<ParsedInstruction> parseInsert(StrCIter begin, StrCIter end) {
@@ -177,8 +171,7 @@ std::unique_ptr<ParsedInstruction> parseInsert(StrCIter begin, StrCIter end) {
         paramNum = strtoul(std::next(sep), end);
     }
 
-    std::unique_ptr<ParsedInstruction> parsed = std::make_unique<ParsedINSERT>(name, isFn, paramNum);
-    return parsed;
+    return std::make_unique<ParsedINSERT>(name, isFn, paramNum);
 }
 
 // INFO: This function parse string with format: "foo(bar,123,'hello world')"
@@ -493,60 +486,68 @@ unsigned long SymbolTable::hashFunc(unsigned long level, const std::string &name
     return hash;
 }
 
+void SymbolTable::setupLinearProbing(unsigned long coefficient) {
+    getIndex = [this, coefficient](unsigned long iter, unsigned long firstHash, unsigned long) -> unsigned long {    // NOLINT
+        return (firstHash + (coefficient * iter) % container.size()) % container.size();
+    };
+
+    doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {    // NOLINT
+        return 0;
+    };
+}
+
+void SymbolTable::setupDoubleProbing(unsigned long coefficient) {
+    getIndex = [this, coefficient](unsigned long iter, unsigned long firstHash, unsigned long secondHash) -> unsigned long {
+        return (firstHash
+                   + ((coefficient * iter * secondHash) % container.size()))
+               % container.size();
+    };
+    doubleHashFunc = [this](unsigned long level, const std::string &name) -> unsigned long {
+        auto size = container.size() - 2;
+        auto hash = level;
+
+        for (auto a : name) {
+            unsigned long c = static_cast<unsigned long>(a - '0');    // NOLINT
+            hash %= size;
+
+            hash *= c > 10 ? 100 : 10;    // NOLINT
+
+            hash %= size;
+            c %= size;
+            hash += c;
+            hash %= size;
+        }
+        return hash + 1;
+    };
+}
+
+void SymbolTable::setupQuadraticProbing(unsigned long firstOrderCoefficient, unsigned long secondOrderCoefficient) {
+    getIndex = [this, firstOrderCoefficient, secondOrderCoefficient](unsigned long iter, unsigned long firstHash, unsigned long) -> unsigned long {    // NOLINT
+        return (firstHash
+                   + (firstOrderCoefficient * iter) % container.size()
+                   + (secondOrderCoefficient * iter * iter) % container.size())
+               % container.size();
+    };
+    doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {
+        return 0;
+    };
+}
+
 void SymbolTable::setupHashTable(const std::string &setupLine) {
     auto res = pam::parseSetupLine(setupLine);
     container = FixedSizeVec<HashEntry>(res.params[0]);
 
     switch (res.method) {
     case pam::ProbingMethod::LINEAR: {
-        auto c = res.params[1];
-        getIndex = [this, c](unsigned long iter, unsigned long firstHash, unsigned long) -> unsigned long {    // NOLINT
-            return (firstHash + (c * iter) % container.size()) % container.size();
-        };
-
-        doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {    // NOLINT
-            return 0;
-        };
+        setupLinearProbing(res.params[1]);
         break;
     }
     case pam::ProbingMethod::DOUBLE: {
-        auto c = res.params[1];
-        getIndex = [this, c](unsigned long iter, unsigned long firstHash, unsigned long secondHash) -> unsigned long {
-            return (firstHash
-                       + ((c * iter * secondHash) % container.size()))
-                   % container.size();
-        };
-        doubleHashFunc = [this](unsigned long level, const std::string &name) -> unsigned long {
-            auto size = container.size() - 2;
-            auto hash = level;
-
-            for (auto a : name) {
-                unsigned long c = static_cast<unsigned long>(a - '0');    // NOLINT
-                hash %= size;
-
-                hash *= c > 10 ? 100 : 10;    // NOLINT
-
-                hash %= size;
-                c %= size;
-                hash += c;
-                hash %= size;
-            }
-            return hash + 1;
-        };
+        setupDoubleProbing(res.params[1]);
         break;
     }
     case pam::ProbingMethod::QUADRARTIC:
-        auto c1 = res.params[1];
-        auto c2 = res.params[2];
-        getIndex = [this, c1, c2](unsigned long iter, unsigned long firstHash, unsigned long) -> unsigned long {    // NOLINT
-            return (firstHash
-                       + (c1 * iter) % container.size()
-                       + (c2 * iter * iter) % container.size())
-                   % container.size();
-        };
-        doubleHashFunc = [](unsigned long, const std::string &) -> unsigned long {
-            return 0;
-        };
+        setupQuadraticProbing(res.params[1], res.params[2]);
         break;
     }
 }
@@ -746,7 +747,7 @@ unsigned long SymbolTable::processFunctionCallParams(const FixedSizeVec<std::str
             break;
 
         case ParamType::IDENTIFIER:
-            auto lookupRes = lookup(param);    // NOTE: Unhandled Undeclared will be handle by caller
+            auto lookupRes = lookup(param);
             auto *symbol = lookupRes.ptr->getValue().get();
 
             if (symbol->getSymbolType() == Symbol::SymbolType::FUNC) {

@@ -371,6 +371,10 @@ class SymbolTable {
     FixedSizeVec<HashEntry> container;
 
     unsigned long currentLevel = 0;
+    
+    void setupLinearProbing(unsigned long coefficient);
+    void setupDoubleProbing(unsigned long coefficient);
+    void setupQuadraticProbing(unsigned long firstOrderCoefficient, unsigned long secondOrderCoefficient);
 
     void setupHashTable(const std::string &setupLine);
     void processLine(const std::string &line);
