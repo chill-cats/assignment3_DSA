@@ -1,4 +1,3 @@
-# CMake build folder
-cmake-build/**
-.cache/
-.ccls-cache/
+./testcase
+./.cache
+./cmake-build
