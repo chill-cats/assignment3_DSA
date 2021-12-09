@@ -846,6 +846,11 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
         auto *castedFunctionSymbol = static_cast<FunctionSymbol *>(functionSymbol);    // NOLINT conversion is safe
 
         auto totalNumberOfProbes = processFunctionCallParams(parsed->getParams(), castedFunctionSymbol->getParams());
+
+        if (castedFunctionSymbol->getDataType() == Symbol::DataType::VOID) {
+            throw sbtexcept::TypeMismatch();
+        }
+
         auto assigneeLookupRes = lookup(assignee);
         auto *assigneeSymbol = assigneeLookupRes.ptr->getValue().get();
 
@@ -853,7 +858,7 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
             throw sbtexcept::TypeMismatch();
         }
 
-        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED && castedFunctionSymbol->getDataType() == Symbol::DataType::VOID) {
+        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
             throw sbtexcept::TypeMismatch();
         }
         compareTypeAndInferIfNeeded(*assigneeSymbol, *castedFunctionSymbol);
