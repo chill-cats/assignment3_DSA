@@ -346,6 +346,7 @@ class InvalidDeclaration : std::exception {};
 class UnknownBlock : std::exception {};
 class TypeMismatch : std::exception {};
 class InferError : std::exception {};
+class InvalidInstruction : std::exception {};
 }    // namespace sbtexcept
 
 class SymbolTable {

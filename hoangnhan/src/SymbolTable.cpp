@@ -193,11 +193,13 @@ ParsedFunctionCall parseFunctionCall(StrCIter begin, StrCIter end) {
     if (startOfArgs == closingParan) {
         return { name, FixedSizeVec<std::string>() };
     }
-    auto paramCount = std::count(startOfArgs, closingParan, ',') + 1;
-    FixedSizeVec<std::string> params(static_cast<unsigned long>(paramCount));
+
+    auto paramCount = static_cast<unsigned long>(std::count(startOfArgs, closingParan, ',') + 1);
+    FixedSizeVec<std::string> params(paramCount);
     unsigned long currentIndex = 0;
     auto currentEnd = startOfArgs;
-    for (; currentEnd != closingParan; ++currentEnd) {
+
+    for (; currentEnd != closingParan;) {
         if (*currentEnd == ',') {
             if (!isValidLiteralNumber(startOfArgs, currentEnd)
                 && !isValidLiteralString(startOfArgs, currentEnd)
@@ -205,8 +207,11 @@ ParsedFunctionCall parseFunctionCall(StrCIter begin, StrCIter end) {
                 throw GenericParsingException();
             }
             params[currentIndex++] = std::string{ startOfArgs, currentEnd };
+            // std::clog << "Params #" << currentIndex - 1 << ": \"" << params[currentIndex - 1] << '"' << '\n';
             ++currentEnd;
             startOfArgs = currentEnd;
+        } else {
+            ++currentEnd;
         }
     }
     if (startOfArgs != closingParan) {
@@ -214,6 +219,10 @@ ParsedFunctionCall parseFunctionCall(StrCIter begin, StrCIter end) {
             throw GenericParsingException();
         }
         params[currentIndex++] = std::string{ startOfArgs, closingParan };
+        // std::clog << "Params #" << currentIndex - 1 << ": \"" << params[currentIndex - 1] << '"' << '\n';
+    }
+    if (currentIndex < paramCount) {
+        throw GenericParsingException();
     }
     return { name, std::move(params) };
 }
@@ -739,11 +748,11 @@ unsigned long SymbolTable::processFunctionCallParams(const FixedSizeVec<std::str
 
         switch (fastParamTypeDeduce(param)) {
         case ParamType::STRING:
-            compareTypeAndInferIfNeeded(Symbol::DataType::NUMBER, functionParamType[i]);
+            compareTypeAndInferIfNeeded(Symbol::DataType::STRING, functionParamType[i]);
             break;
 
         case ParamType::NUMBER:
-            compareTypeAndInferIfNeeded(Symbol::DataType::STRING, functionParamType[i]);
+            compareTypeAndInferIfNeeded(Symbol::DataType::NUMBER, functionParamType[i]);
             break;
 
         case ParamType::IDENTIFIER:
@@ -823,7 +832,7 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
         auto assignerLookupRes = lookup(parsed->getValueName());
         auto *assignerSymbol = assignerLookupRes.ptr->getValue().get();
         if (assignerSymbol->getSymbolType() == Symbol::SymbolType::FUNC) {
-            throw sbtexcept::TypeMismatch();
+            throw sbtexcept::InvalidInstruction();
         }
 
         auto assigneeLookupRes = lookup(assignee);
@@ -840,7 +849,7 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
         auto functionSymbolLookupRes = lookup(parsed->getValueName());
         auto *functionSymbol = functionSymbolLookupRes.ptr->getValue().get();
         if (functionSymbol->getSymbolType() == Symbol::SymbolType::VAR) {
-            throw sbtexcept::TypeMismatch();
+            throw sbtexcept::InvalidInstruction();
         }
 
         auto *castedFunctionSymbol = static_cast<FunctionSymbol *>(functionSymbol);    // NOLINT conversion is safe
@@ -858,9 +867,6 @@ unsigned long SymbolTable::assign(const pam::ParsedASSIGN *parsed) {
             throw sbtexcept::TypeMismatch();
         }
 
-        if (assigneeSymbol->getDataType() == Symbol::DataType::UN_INFERRED) {
-            throw sbtexcept::TypeMismatch();
-        }
         compareTypeAndInferIfNeeded(*assigneeSymbol, *castedFunctionSymbol);
 
         totalNumberOfProbes += functionSymbolLookupRes.numOfProbes;
@@ -899,6 +905,8 @@ void SymbolTable::processLine(const std::string &line) {
             throw TypeMismatch(line);
         } catch (sbtexcept::InferError &e) {
             throw TypeCannotBeInferred(line);
+        } catch (sbtexcept::InvalidInstruction &e) {
+            throw InvalidInstruction(line);
         }
         return;
     }
