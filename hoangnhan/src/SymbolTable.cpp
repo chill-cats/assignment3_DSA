@@ -420,7 +420,7 @@ Symbol::DataType Symbol::getDataType() const noexcept {
     return m_dataType;
 }
 
-void Symbol::setDataType(DataType type) noexcept {
+void Symbol::changeDataType(DataType type) noexcept {
     m_dataType = type;
 }
 
@@ -445,14 +445,14 @@ const std::unique_ptr<Symbol> &SymbolTable::HashEntry::getValue() const noexcept
 bool SymbolTable::HashEntry::isTombStone() const noexcept {
     return isTombstone;
 }
-void SymbolTable::HashEntry::setTombStone() noexcept {
+void SymbolTable::HashEntry::changeToTombStone() noexcept {
     isTombstone = true;
 }
-void SymbolTable::HashEntry::unsetTombStone() noexcept {
+void SymbolTable::HashEntry::unChangeToTombStone() noexcept {
     isTombstone = false;
 }
 
-void SymbolTable::HashEntry::setValue(std::unique_ptr<Symbol> &&newVal) {
+void SymbolTable::HashEntry::changeValue(std::unique_ptr<Symbol> &&newVal) {
     value = std::move(newVal);
 }
 
@@ -466,7 +466,7 @@ void SymbolTable::run(const std::string &filename) {
     }
 
     try {
-        setupHashTable(line);
+        initHashTable(line);
     } catch (pam::GenericParsingException &e) {
         throw InvalidInstruction(line);
     }
@@ -495,7 +495,7 @@ unsigned long SymbolTable::hashFunc(unsigned long level, const std::string &name
     return hash;
 }
 
-void SymbolTable::setupLinearProbing(unsigned long coefficient) {
+void SymbolTable::initLinearProbing(unsigned long coefficient) {
     getIndex = [this, coefficient](unsigned long iter, unsigned long firstHash, unsigned long) -> unsigned long {    // NOLINT
         return (firstHash + (coefficient * iter) % container.size()) % container.size();
     };
@@ -505,7 +505,7 @@ void SymbolTable::setupLinearProbing(unsigned long coefficient) {
     };
 }
 
-void SymbolTable::setupDoubleProbing(unsigned long coefficient) {
+void SymbolTable::initDoubleProbing(unsigned long coefficient) {
     getIndex = [this, coefficient](unsigned long iter, unsigned long firstHash, unsigned long secondHash) -> unsigned long {
         return (firstHash
                    + ((coefficient * iter * secondHash) % container.size()))
@@ -530,7 +530,7 @@ void SymbolTable::setupDoubleProbing(unsigned long coefficient) {
     };
 }
 
-void SymbolTable::setupQuadraticProbing(unsigned long firstOrderCoefficient, unsigned long secondOrderCoefficient) {
+void SymbolTable::initQuadraticProbing(unsigned long firstOrderCoefficient, unsigned long secondOrderCoefficient) {
     getIndex = [this, firstOrderCoefficient, secondOrderCoefficient](unsigned long iter, unsigned long firstHash, unsigned long) -> unsigned long {    // NOLINT
         return (firstHash
                    + (firstOrderCoefficient * iter) % container.size()
@@ -542,21 +542,21 @@ void SymbolTable::setupQuadraticProbing(unsigned long firstOrderCoefficient, uns
     };
 }
 
-void SymbolTable::setupHashTable(const std::string &setupLine) {
-    auto res = pam::parseSetupLine(setupLine);
+void SymbolTable::initHashTable(const std::string &initLine) {
+    auto res = pam::parseSetupLine(initLine);
     container = FixedSizeVec<HashEntry>(res.params[0]);
 
     switch (res.method) {
     case pam::ProbingMethod::LINEAR: {
-        setupLinearProbing(res.params[1]);
+        initLinearProbing(res.params[1]);
         break;
     }
     case pam::ProbingMethod::DOUBLE: {
-        setupDoubleProbing(res.params[1]);
+        initDoubleProbing(res.params[1]);
         break;
     }
     case pam::ProbingMethod::QUADRARTIC:
-        setupQuadraticProbing(res.params[1], res.params[2]);
+        initQuadraticProbing(res.params[1], res.params[2]);
         break;
     }
 }
@@ -601,8 +601,8 @@ unsigned long SymbolTable::insert(const pam::ParsedINSERT *parsed) {
     auto totalNumberOfProbing = 0UL;
 
     auto position = findInsertPosition(newSymbol, totalNumberOfProbing);
-    container[position].setValue(std::move(newSymbol));
-    container[position].unsetTombStone();
+    container[position].changeValue(std::move(newSymbol));
+    container[position].unChangeToTombStone();
 
     return totalNumberOfProbing;
 }
@@ -622,7 +622,7 @@ void SymbolTable::end() {
 
     for (auto &entry : container) {
         if (entry.getValue() && entry.getValue()->getLevel() == currentLevel) {
-            entry.setTombStone();
+            entry.changeToTombStone();
         }
     }
     currentLevel--;
@@ -700,7 +700,7 @@ void SymbolTable::compareTypeAndInferIfNeeded(Symbol::DataType targetType, Symbo
 
 void SymbolTable::compareTypeAndInferIfNeeded(Symbol::DataType targetType, Symbol &unknownSymbol) {
     if (unknownSymbol.getDataType() == Symbol::DataType::UN_INFERRED) {
-        unknownSymbol.setDataType(targetType);
+        unknownSymbol.changeDataType(targetType);
     } else if (unknownSymbol.getDataType() != targetType) {
         throw sbtexcept::TypeMismatch();
     }
@@ -715,7 +715,7 @@ void SymbolTable::compareTypeAndInferIfNeeded(Symbol::DataType &unknownType, Sym
     if (unknownType == Symbol::DataType::UN_INFERRED) {
         unknownType = unknownSymbol.getDataType();
     } else if (unknownSymbol.getDataType() == Symbol::DataType::UN_INFERRED) {
-        unknownSymbol.setDataType(unknownType);
+        unknownSymbol.changeDataType(unknownType);
     } else if (unknownSymbol.getDataType() != unknownType) {
         throw sbtexcept::TypeMismatch();
     }
@@ -727,10 +727,10 @@ void SymbolTable::compareTypeAndInferIfNeeded(Symbol &unknownSymbol1, Symbol &un
     }
 
     if (unknownSymbol2.getDataType() == Symbol::DataType::UN_INFERRED) {
-        unknownSymbol2.setDataType(unknownSymbol1.getDataType());
+        unknownSymbol2.changeDataType(unknownSymbol1.getDataType());
 
     } else if (unknownSymbol1.getDataType() == Symbol::DataType::UN_INFERRED) {
-        unknownSymbol1.setDataType(unknownSymbol2.getDataType());
+        unknownSymbol1.changeDataType(unknownSymbol2.getDataType());
 
     } else if (unknownSymbol1.getDataType() != unknownSymbol2.getDataType()) {
         throw sbtexcept::TypeMismatch();

@@ -321,7 +321,7 @@ public:
     unsigned long getLevel() const noexcept;
     DataType getDataType() const noexcept;
     SymbolType getSymbolType() const noexcept;
-    void setDataType(DataType type) noexcept;
+    void changeDataType(DataType type) noexcept;
 
     virtual ~Symbol() = default;
 };
@@ -358,10 +358,10 @@ class SymbolTable {
         explicit HashEntry(std::unique_ptr<Symbol> &&value);
         HashEntry() = default;
         const std::unique_ptr<Symbol> &getValue() const noexcept;
-        void setValue(std::unique_ptr<Symbol> &&newVal);
+        void changeValue(std::unique_ptr<Symbol> &&newVal);
         bool isTombStone() const noexcept;
-        void setTombStone() noexcept;
-        void unsetTombStone() noexcept;
+        void changeToTombStone() noexcept;
+        void unChangeToTombStone() noexcept;
     };
 
     unsigned long hashFunc(unsigned long level, const std::string &name);
@@ -373,11 +373,11 @@ class SymbolTable {
 
     unsigned long currentLevel = 0;
     
-    void setupLinearProbing(unsigned long coefficient);
-    void setupDoubleProbing(unsigned long coefficient);
-    void setupQuadraticProbing(unsigned long firstOrderCoefficient, unsigned long secondOrderCoefficient);
+    void initLinearProbing(unsigned long coefficient);
+    void initDoubleProbing(unsigned long coefficient);
+    void initQuadraticProbing(unsigned long firstOrderCoefficient, unsigned long secondOrderCoefficient);
 
-    void setupHashTable(const std::string &setupLine);
+    void initHashTable(const std::string &initLine);
     void processLine(const std::string &line);
 
     std::unique_ptr<Symbol> constructNewSymbol(const std::string &name, bool isFunc, unsigned long paramNum);
